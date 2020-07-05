@@ -1,5 +1,0 @@
-#lang s-exp syntax/module-reader
-(file "словарь.rkt")
-#:read my-read
-#:read-syntax my-read-syntax
-(require (file "чтец.rkt"))
