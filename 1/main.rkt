@@ -1,11 +1,11 @@
 #lang racket/base
 
 (module reader syntax/module-reader
-  (file "словарь.rkt")
+  1/dict
   #:read my-read
   #:read-syntax my-read-syntax
   #:language-info #(1/language-info get-language-info #f)
-  (require (file "чтец.rkt"))
+  (require 1/reader)
   (define (get-info key default f)
     (define (fallback) (f key default))
     (case key
