@@ -25,7 +25,8 @@
         str
         (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
   (cond
-    [(exn:fail:syntax:unbound? e) (exn:fail:syntax:unbound (exn-message e) (exn-continuation-marks e) (exn:fail:syntax-exprs e))]
+    [(exn:fail:syntax:unbound? e)
+     (exn:fail:syntax:unbound (exn-message e) (exn-continuation-marks e) (exn:fail:syntax-exprs e))]
     [(exn:fail:read? e) (exn:fail:read
                          (replace-dict (exn-message e) dict)
                          (exn-continuation-marks e) (exn:fail:read-srclocs e))]
@@ -136,7 +137,12 @@
   (define c null)
   (let loop ([r null] [c null] [l (syntax-e x)])
     (cond
-      [(null? l) (datum->syntax x (map (λ (y) (clean (datum->syntax x y)))
+      [(null? l) (datum->syntax x (map (λ (elem)
+                                         (define elem*
+                                           (match elem
+                                             [(list x) x]
+                                             [_ elem]))
+                                         (clean (datum->syntax x elem*)))
                                        (filter (λ (x) (not (null? x)))
                                                (reverse (cons c r)))))]
       [(not (pair? l)) (loop r (append c l) null)]
@@ -151,7 +157,8 @@
     [(a c ... (~datum =) b ...) #`(#,sym-def (a c ...) #,(datum->syntax x (syntax->datum #'(b ...))))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
-    [(a ... (~and dot (~datum |.|)) . b) (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
+    [(a ... (~and dot (~datum |.|)) . b)
+     (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
     [_ x]))
 
 (define (clean-list x)
@@ -316,4 +323,5 @@
                 '(1 2 (3 4) (5 6 (7 8))))
   (test "(2 #|23 32|# . 3)"  '(2 . 3))
   (test "2 3 -- sadasd  sad as\n 4 5"  '(2 3 4 5))
-  (test "f(a) f(g(d))" '((f a) (f (g d)))))
+  (test "f(a) f(g(d))" '((f a) (f (g d))))
+  (test "f(a; b c; d)" '(f a (b c) d)))
