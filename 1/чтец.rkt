@@ -151,7 +151,8 @@
 
 (define (clean x)
   (syntax-parse x
-    [(a (~datum =) b) #`(#,sym-def a b)]
+    [(a (~datum =) b) #`(#,sym-def #,(clean #'a) #,(clean #'b))]
+    [(a ... (b ... (kw:keyword c ...) d ...) e ...) (clean #'(a ... (b ... kw c ... d ...) e ...))]
     [((a ...) (~datum =) b ...) #`(#,sym-def (a ...) b ...)]
     [(a (~datum =) b ...) #`(#,sym-def a #,(datum->syntax x (syntax->datum #'(b ...))))]
     [(a c ... (~datum =) b ...) #`(#,sym-def (a c ...) #,(datum->syntax x (syntax->datum #'(b ...))))]
@@ -218,9 +219,7 @@
                 [(list a b c ...) (list rest)]
                 [_ rest])]
              [else
-              (cond [(keyword? (syntax-e first))
-                     (cons (syntax-property first 'ungroup-kw #t) rest)]
-                    [else (cons first rest)])]))]))
+              (cons first rest)]))]))
 
 (define (readquote qt)
   (define char (peek-char-or-special))
@@ -288,15 +287,10 @@
             (datum->syntax #f (cons #'bracket (cons res (read-list #\]))))]
            [else res])]))
 
-(define (parse-kw stx [next-blocks null])
+(define (parse-block-dot stx [next-blocks null])
   (cond
     [(null? stx) null]
     [(dot? stx) next-blocks]
-    [(syntax-property stx 'ungroup-kw)
-     (syntax-parse stx
-       [(kw) (list* #'kw next-blocks)]
-       [(kw arg) (list* #'kw #'arg next-blocks)]
-       [(kw . args) (list* #'kw #'args next-blocks)])]
     [else (cons stx next-blocks)]))
 
 (define (read-blocks level)
@@ -304,9 +298,9 @@
   (match-define (cons next-level stx) (read-block-clean level))
   (cond [(equal? next-level level)
          (match-define (cons next-next-level next-blocks) (read-blocks level))
-         (cons next-next-level (parse-kw stx next-blocks))]
+         (cons next-next-level (parse-block-dot stx next-blocks))]
         [else
-         (cons next-level (parse-kw stx null))]))
+         (cons next-level (parse-block-dot stx null))]))
 
 (define (dot? x) (and (syntax? x) (eq? (syntax-e x) '|.|)))
 (define ($? x) (and (syntax? x) (eq? (syntax-e x) '$)))
@@ -324,4 +318,6 @@
   (test "(2 #|23 32|# . 3)"  '(2 . 3))
   (test "2 3 -- sadasd  sad as\n 4 5"  '(2 3 4 5))
   (test "f(a) f(g(d))" '((f a) (f (g d))))
-  (test "f(a; b c; d)" '(f a (b c) d)))
+  (test "f(a; b c; d)" '(f a (b c) d))
+  (test "цикл/первый\n ;\n  p points\n  #:когда tau < p[0]\n bonus := bonus + p[1]" '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1))))
+  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[1]" '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1)))))
