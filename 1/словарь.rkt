@@ -12,8 +12,8 @@
 
 (define-syntax (:= stx)
   (syntax-case stx (значения)
-    [(:= (значения . а) б) #'(begin (set!-values а б) (values . a))]
-    [(:= а б) #'(begin (set! а б) а)]))
+    [(:= (значения . а) б) #'(let () (set!-values а б) (values . a))]
+    [(:= а б) #'(let () (set! а б) а)]))
 
 (define-syntax (синоним stx)
   (syntax-case stx ()
@@ -196,9 +196,12 @@
                 [(and (оператор? элем)
                       (= (car (приоритет-оператора элем)) приоритет))
                  (define право (cdr список))
-                 (append (list (очистить-оператор элем))
-                         (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                         (if (list1? право) право (list (datum->syntax stx право))))]
+                 (local-expand
+                  (append (list (очистить-оператор элем))
+                          (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
+                          (if (list1? право) право (list (datum->syntax stx право))))
+                  'expression
+                  #f)]
                 [else
                  (define элем (car список))
                  (разделить-по-оператору (cdr список)

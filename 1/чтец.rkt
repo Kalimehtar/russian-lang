@@ -11,8 +11,6 @@
                    [current-input-port port])
       (indent-read))))
 
-(define sym-def (datum->syntax #f '=))
-
 (define (translate e)
   (define dict
     '(("unexpected" . "неожиданно встретилась")
@@ -149,13 +147,19 @@
       [(eq? (syntax-e (car l)) '|;|) (loop (cons c r) null (cdr l))]
       [else (loop r (append c (list (car l))) (cdr l))])))
 
+(define sym-= (datum->syntax #f '=))
+
 (define (clean x)
   (syntax-parse x
-    [(a (~datum =) b) #`(#,sym-def #,(clean #'a) #,(clean #'b))]
+    [(a (~datum =) b) #`(#,sym-= #,(clean #'a) #,(clean #'b))]
     [(a ... (b ... (kw:keyword c ...) d ...) e ...) (clean #'(a ... (b ... kw c ... d ...) e ...))]
-    [((a ...) (~datum =) b ...) #`(#,sym-def (a ...) b ...)]
-    [(a (~datum =) b ...) #`(#,sym-def a #,(datum->syntax x (syntax->datum #'(b ...))))]
-    [(a c ... (~datum =) b ...) #`(#,sym-def (a c ...) #,(datum->syntax x (syntax->datum #'(b ...))))]
+    [((a ...) (~datum =) b ...) #`(#,sym-= (a ...) b ...)]
+    [(a (~datum =) . b) #`(#,sym-= a b)]
+    [(a c ... (~datum =) . b) #`(#,sym-= (a c ...) . b)]
+    [(a (~datum :=) b) #`(:= a b)]
+    [(a (~datum :=) . b) #`(:= a #,(clean #'b))]
+    [(a ... (~datum :=) b) #`(:= (a ...) b)]
+    [(a ... (~datum :=) . b) #`(:= (a ...) #,(clean #'b))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
     [(a ... (~and dot (~datum |.|)) . b)
