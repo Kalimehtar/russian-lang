@@ -284,7 +284,7 @@
             (datum->syntax #f (cons res (read-item)))]
            [(rt-char=? (peek-char-or-special) #\[)
             (read-char)
-            (datum->syntax #f (cons #'bracket (cons res (read-list #\]))))]
+            (datum->syntax #f (cons 'bracket (cons res (read-list #\]))))]
            [else res])]))
 
 (define (parse-block-dot stx [next-blocks null])
@@ -319,5 +319,7 @@
   (test "2 3 -- sadasd  sad as\n 4 5"  '(2 3 4 5))
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
-  (test "цикл/первый\n ;\n  p points\n  #:когда tau < p[0]\n bonus := bonus + p[1]" '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1))))
-  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[1]" '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1)))))
+  (test "цикл/первый\n ;\n  p points\n  #:когда tau < p[0]\n bonus := bonus + p[1]"
+        '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1))))
+  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[1]"
+        '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1)))))
