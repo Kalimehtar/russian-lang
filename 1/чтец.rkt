@@ -135,14 +135,15 @@
   (define c null)
   (let loop ([r null] [c null] [l (syntax-e x)])
     (cond
-      [(null? l) (datum->syntax x (map (λ (elem)
-                                         (define elem*
-                                           (match elem
+      [(null? l)
+       (datum->syntax x
+                      (map (λ (elem)
+                             (define elem* (match elem
                                              [(list x) x]
                                              [_ elem]))
-                                         (clean (datum->syntax x elem*)))
-                                       (filter (λ (x) (not (null? x)))
-                                               (reverse (cons c r)))))]
+                             (clean (datum->syntax x elem*)))
+                           (filter (λ (x) (not (null? x)))
+                                   (reverse (cons c r)))))]
       [(not (pair? l)) (loop r (append c l) null)]
       [(eq? (syntax-e (car l)) '|;|) (loop (cons c r) null (cdr l))]
       [else (loop r (append c (list (car l))) (cdr l))])))
@@ -152,8 +153,9 @@
 (define (clean x)
   (syntax-parse x
     [(a (~datum =) b) #`(#,sym-= #,(clean #'a) #,(clean #'b))]
-    [(a ... (b ... (kw:keyword c ...) d ...) e ...) (clean #'(a ... (b ... kw c ... d ...) e ...))]
-    [((a ...) (~datum =) b ...) #`(#,sym-= (a ...) b ...)]
+    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
+    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
+    [((a ...) (~datum =) b ...) #`(#,sym-= #,(clean #'(a ...)) b ...)]
     [(a (~datum =) . b) #`(#,sym-= a b)]
     [(a c ... (~datum =) . b) #`(#,sym-= (a c ...) . b)]
     [(a (~datum :=) b) #`(:= a b)]
@@ -168,7 +170,7 @@
 
 (define (clean-list x)
   (syntax-parse x
-    [(a ... (~datum |;|) . b) (split-sc x)]
+    [(a ... (~datum |;|) . b) (clean (split-sc x))]
     [_ (clean x)]))
 
 (define current-source-name (make-parameter #f))
@@ -324,6 +326,6 @@
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
   (test "цикл/первый\n ;\n  p points\n  #:когда tau < p[0]\n bonus := bonus + p[1]"
-        '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1))))
-  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[1]"
-        '(цикл/первый ((p points) #:когда tau < (bracket p 0)) (bonus := bonus + (bracket p 1)))))
+        '(цикл/первый ((p points) #:когда (tau < (bracket p 0))) (:= bonus (bonus + (bracket p 1)))))
+  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[2]"
+        '(цикл/первый ((p points) #:когда (tau < (bracket p 0))) (:= bonus (bonus + (bracket p 2))))))

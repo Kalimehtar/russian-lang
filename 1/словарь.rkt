@@ -5,15 +5,17 @@
 
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
-    [(= (значения . а) б) #'(define-values а б)]
-    [(= (шаблон а) б) #'(match-define а б)]
-    [(= (шаблоны . а) б) #'(match-define-values а б)]
-    [(= а . б) #'(define а . б)]))
+    [(_ (значения . а) б) #'(define-values а б)]
+    [(_ (шаблон а) б) #'(match-define а б)]
+    [(_ (шаблоны . а) б) #'(match-define-values а б)]
+    [(_ а . б) #'(define а . б)]))
+
+(define (значения . a) (apply values a))
 
 (define-syntax (:= stx)
   (syntax-case stx (значения)
-    [(:= (значения . а) б) #'(let () (set!-values а б) (values . a))]
-    [(:= а б) #'(let () (set! а б) а)]))
+    [(_ (значения . а) б) #'(let () (set!-values а б) (values . а))]
+    [(_ а б) #'(let () (set! а б) а)]))
 
 (define-syntax (синоним stx)
   (syntax-case stx ()
