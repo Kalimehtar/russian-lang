@@ -122,13 +122,21 @@
          stx)]))
 
 (define (read-block-clean level)
+  (define-values (ln col pos) (port-next-location (current-input-port)))
   (match-define (cons next-level stx) (read-block level))
   (cons next-level
         (if (or (eof-object? stx) (null? stx))
             stx
             (match stx
                  [(list x) x]
-                 [_ (clean (datum->syntax #f stx))]))))
+                 [_
+                  (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
+                  (clean (datum->syntax #f stx
+                                        (vector (current-source-name)
+                                                ln col pos (- end-pos pos))
+                                        (read-syntax #f (open-input-string "orig"))))]))))
+
+
 
 (define (split-sc x)
   (define r null)
@@ -166,6 +174,13 @@
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
     [(a ... (~and dot (~datum |.|)) . b)
      (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
+    [((~and q
+            (~or (~datum quote)
+                 (~datum unquote)
+                 (~datum quasiquote)
+                 (~datum unquote-splicing)))
+      b c d ...)
+     #`(q #,(clean #'(b c d ...)))]
     [_ x]))
 
 (define (clean-list x)
@@ -212,7 +227,6 @@
     [else
      (define-values (ln col pos) (port-next-location (current-input-port)))
      (define first (read-item))
-     ;(displayln first)
      (match-define (cons new-level rest) (read-block level))
      (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
      (cons new-level
@@ -229,10 +243,13 @@
 
 (define (readquote qt)
   (define char (peek-char-or-special))
-  (datum->syntax #f (list qt (syntax-e
-                              (if (char-whitespace? char)
-                                  (begin (read-char) (indent-read))
-                                  (read-item))))))
+  (define-values (ln col pos) (port-next-location (current-input-port)))  
+  (define stx (if (char-whitespace? char) qt (list qt (read-item))))
+  (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
+  (datum->syntax #f stx
+                 (vector (current-source-name)
+                         ln col pos (- end-pos pos))
+                 (read-syntax #f (open-input-string "orig"))))
 
 (define (read-list end)
   (consume-whitespaces!)
