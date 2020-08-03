@@ -119,14 +119,14 @@
 (define-for-syntax (оператор? stx)
   (define s (syntax-e stx))
   (define (имя-оператора? имя)
-    (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]+$" имя)
+    (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
         (regexp-match #rx"^\\^.*\\^$" имя)))
   (and (symbol? s)
        (имя-оператора? (symbol->string s))))
 
 (define-for-syntax (очистить-оператор stx)
   (define имя (symbol->string (syntax-e stx)))
-  (if (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]+$" имя)
+  (if (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
       stx
       (datum->syntax stx
                      (string->symbol (substring имя 1 (sub1 (string-length имя)))))))
