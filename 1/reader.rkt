@@ -318,9 +318,10 @@
             (loop (datum->syntax #f (cons 'bracket (cons res (read-list #\])))))]
            [(rt-char=? (peek-char-or-special) #\{)
             (read-char)
+            (define l (clean-list (datum->syntax #f (read-list #\}))))
             (loop (datum->syntax #f
-                                 (cons 'send+
-                                       (cons res (clean-list (datum->syntax #f (read-list #\})))))))]
+                                 (cons (if (cons? (car (syntax->datum l))) 'send+ 'send)
+                                       (cons res l))))]
            [else res]))]))
 
 (define (parse-block-dot stx [next-blocks null])
@@ -360,4 +361,6 @@
   (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[2]"
         '(цикл/первый ((p points) #:когда (tau < (bracket p 0))) (:= bonus (bonus + (bracket p 2)))))
   (test "new(point%){move-x 5; move-y 7; move-x 12}"
-        '(send+ (new point%) (move-x 5) (move-y 7) (move-x 12))))
+        '(send+ (new point%) (move-x 5) (move-y 7) (move-x 12)))
+  (test "new(point%){move-x 5}"
+        '(send (new point%) move-x 5)))
