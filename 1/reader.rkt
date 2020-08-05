@@ -1,5 +1,5 @@
 #lang racket
-(require syntax/readerr syntax/srcloc syntax/parse syntax/stx)
+(require syntax/readerr syntax/srcloc syntax/parse racket/list)
 (provide my-read my-read-syntax)
 
 (define (my-read [p (current-input-port)]) (syntax->datum (my-read-syntax #f p)))
@@ -166,9 +166,9 @@
     [((a ...) (~datum =) b ...) #`(#,sym-= #,(clean #'(a ...)) b ...)]
     [(a (~datum =) . b) #`(#,sym-= a b)]
     [(a c ... (~datum =) . b) #`(#,sym-= (a c ...) . b)]
-    [(a (~datum :=) b) #`(:= a b)]
+    [(a (~datum :=) b) #'(:= a b)]
     [(a (~datum :=) . b) #`(:= a #,(clean #'b))]
-    [(a ... (~datum :=) b) #`(:= (a ...) b)]
+    [(a ... (~datum :=) b) #'(:= (a ...) b)]
     [(a ... (~datum :=) . b) #`(:= (a ...) #,(clean #'b))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
@@ -181,7 +181,34 @@
                  (~datum unquote-splicing)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
+    [(a (~datum ||) b) #`(|| a b)]
+    [(a (~datum ||) . b) #`(|| a #,(clean #'b))]
+    [(a ... (~datum ||) b) #`(|| #,(clean (datum->syntax x (syntax->datum #'(a ...)))) b)]
+    [(a ... (~datum ||) . b) #`(|| #,(clean (datum->syntax x (syntax->datum #'(a ...))))
+                                   #,(clean #'b))]
+    [(a (~datum &&) b) #'(&& a b)]
+    [(a (~datum &&) . b) #'(&& a #,(clean #'b))]
+    [(a ... (~datum &&) b) #`(&& #,(clean (fix #'(a ...))) b)]
+    [(a ... (~datum &&) . b) #`(&& #,(clean (fix #'(a ...)))
+                                   #,(clean #'b))]
     [_ x]))
+
+(define (fix l)
+  (define orig (car (syntax-e l)))
+  (define last-orig (last (syntax-e l)))
+  (define srcloc
+    (list (syntax-source orig)
+          (syntax-line orig)
+          (syntax-column orig)
+          (syntax-position orig)
+          (and
+           (syntax-position last-orig)
+           (syntax-position orig)
+           (syntax-span last-orig)
+           (+ (- (syntax-position last-orig)
+                 (syntax-position orig))
+              (syntax-span last-orig)))))
+  (datum->syntax orig (syntax->datum l) srcloc orig))
 
 (define (clean-list x)
   (syntax-parse x
