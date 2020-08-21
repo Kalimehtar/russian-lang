@@ -117,9 +117,29 @@
     [else
      (define-values (ln col pos) (port-next-location (current-input-port)))
      (match-define (cons level stx) (read-block-clean ""))
-     (if (dot? stx)
-         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)
-         stx)]))
+     (cond
+       [(dot? stx)
+        (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
+       [(operator? stx) => (λ (parsed)
+                             
+                             (apply оператор! (syntax->datum parsed))
+                             (indent-read))]
+       [else stx])]))
+
+(define (operator? stx)
+  (define (операция-и-приоритет? оп прио оператор! ассоциативность)
+    (and (symbol? (syntax-e оп))
+         (real? (syntax-e прио))
+         (eq? (syntax-e оператор!) 'оператор!)
+         (memq (syntax-e ассоциативность) '(право лево нет))))
+  (syntax-case stx ()
+    [(оп оператор! прио)
+     (операция-и-приоритет? #'оп #'прио #'оператор! #'нет)
+     #'(оп прио)]
+    [(оп оператор! прио ассоциативность)
+     (операция-и-приоритет? #'оп #'прио #'оператор! #'ассоциативность)
+     #'(оп прио лево)]
+    [else #f]))
 
 (define (read-block-clean level)
   (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -158,14 +178,138 @@
 
 (define sym-= (datum->syntax #f '=))
 
+(define приоритеты (make-hasheq))
+(define (оператор! оп приоритет [ассоциативность 'лево])
+  (hash-set! приоритеты оп (cons приоритет ассоциативность)))
+
+(оператор! '* 7)
+(оператор! '/ 7)
+(оператор! '// 7)
+(оператор! '% 7)
+(оператор! '+ 6)
+(оператор! '- 6)
+(оператор! '== 4)
+(оператор! '/= 4)
+(оператор! '< 4)
+(оператор! '> 4)
+(оператор! '|| 3)
+(оператор! '&& 3)
+;(оператор! #':= 0 'право)
+
+(define (оператор? stx)
+  (define s (syntax-e stx))
+  (define (имя-оператора? имя)
+    (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
+        (regexp-match #rx"^\\^.*\\^$" имя)))
+  (and (symbol? s)
+       (имя-оператора? (symbol->string s))))
+
+(define (очистить-оператор stx)
+  (define имя (symbol->string (syntax-e stx)))
+  (if (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
+      stx
+      (datum->syntax stx
+                     (string->symbol (substring имя 1 (sub1 (string-length имя)))))))
+
+(define (приоритет-оператора оп)
+  (hash-ref приоритеты (syntax-e оп) (λ () (cons 9 'лево))))
+
+(define (обработать-операторы stx)
+  (define l (syntax-e stx))
+  (cond
+    [(pair? l)
+     (define операторы
+       (let собрать-операторы ([список (cdr l)] [результат null])
+         (cond
+           [(or (null? список)
+                (not (pair? список))
+                (null? (cdr список))
+                (not (pair? (cdr список)))) результат]
+           [else (собрать-операторы (cdr список)
+                                    (if (оператор? (car список))
+                                        (cons (car список) результат)
+                                        результат))])))
+     (cond
+       [(null? операторы) stx]
+       [else
+        (define-values (приоритет направление)
+          (let минимум ([операторы операторы] [приоритет 10] [направление #f])
+            (cond
+             [(null? операторы) (values приоритет направление)]
+             [else
+              (match-define (cons прио напр) (приоритет-оператора (car операторы)))
+              (cond
+                [(< прио приоритет) (минимум (cdr операторы) прио напр)]
+                [(= прио приоритет)
+                 (unless (eq? направление напр)
+                   (raise-syntax-error 'обработать-операторы (format "\
+в выражении для приоритета ~a есть операторы с направлением чтения ~a и ~a" прио направление напр)
+                                       stx (car операторы)))
+                 (минимум (cdr операторы) прио напр)]
+                [else (минимум (cdr операторы) приоритет направление)])])))
+        (when (eq? направление 'нет)
+          (define отобранные (filter (λ (оп)
+                                          (= (car (приоритет-оператора оп)) приоритет))
+                                     операторы))
+          (when (< 1 (length отобранные))
+            (raise-syntax-error 'обработать-операторы (format "\
+в выражении для приоритета ~a и отсутствующей ассоциативности несколько операторов: ~a"
+                                                              приоритет отобранные)
+                                stx (car отобранные))))
+        (define (list1? x) (and
+                            (not (null? x))
+                            (null? (cdr x))))
+        (if (eq? направление 'право)
+            (let разделить-по-оператору ([список (cdr l)] [лево (list (car l))]
+                                                          [оператор #f] [право null])
+              (cond
+                [(or (null? список)
+                     (not (pair? список))
+                     (null? (cdr список))
+                     (not (pair? (cdr список))))
+                 (define право* (append (reverse право) список))
+                 (map clean
+                      (append (list оператор)
+                              (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
+                              (if (list1? право*) право* (list (datum->syntax stx право*)))))]
+                [else
+                 (define элем (car список))
+                 (define найден? (and (оператор? элем)
+                                      (= (car (приоритет-оператора элем)) приоритет)))
+                 (разделить-по-оператору (cdr список)
+                                         (cond
+                                           [найден? (append право лево)]
+                                           [оператор лево]
+                                           [else (cons элем лево)])
+                                         (if найден? элем оператор)
+                                         (cond
+                                           [найден? null]
+                                           [оператор (cons элем право)]
+                                           [else null]))]))
+            (let разделить-по-оператору ([список (cdr l)] [лево (list (car l))])
+              (define элем (car список))              
+              (cond
+                [(and (оператор? элем)
+                      (= (car (приоритет-оператора элем)) приоритет))
+                 (define право (cdr список))
+                 (map clean
+                      (append (list (очистить-оператор элем))
+                              (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
+                              (if (list1? право) право (list (datum->syntax stx право)))))]
+                [else
+                 (define элем (car список))
+                 (разделить-по-оператору (cdr список)
+                                         (cons элем лево))])))])]
+    [else stx]))
+
 (define (clean x)
   (syntax-parse x
-    [(a (~datum =) b) #`(#,sym-= #,(clean #'a) #,(clean #'b))]
     [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
     [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
+    [(a (~datum =) b) #`(#,sym-= #,(clean #'a) #,(clean #'b))]
     [((a ...) (~datum =) b ...) #`(#,sym-= #,(clean #'(a ...)) b ...)]
     [(a (~datum =) . b) #`(#,sym-= a b)]
-    [(a c ... (~datum =) . b) #`(#,sym-= (a c ...) . b)]
+    [(a c ... (~datum =) . b) #`(#,sym-= #,(clean #'(a c ...)) . b)]
     [(a (~datum :=) b) #'(:= a b)]
     [(a (~datum :=) . b) #`(:= a #,(clean #'b))]
     [(a ... (~datum :=) b) #'(:= (a ...) b)]
@@ -181,6 +325,7 @@
                  (~datum unquote-splicing)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
+    #|
     [(a (~datum ||) b) #`(|| a b)]
     [(a (~datum ||) . b) #`(|| a #,(clean #'b))]
     [(a ... (~datum ||) b) #`(|| #,(clean (datum->syntax x (syntax->datum #'(a ...)))) b)]
@@ -191,7 +336,8 @@
     [(a ... (~datum &&) b) #`(&& #,(clean (fix #'(a ...))) b)]
     [(a ... (~datum &&) . b) #`(&& #,(clean (fix #'(a ...)))
                                    #,(clean #'b))]
-    [_ x]))
+    |#
+    [_ (datum->syntax x (обработать-операторы x))]))
 
 (define (fix l)
   (define orig (car (syntax-e l)))
@@ -262,9 +408,10 @@
              [(eof-object? rest) first]
              [(dot? first) (parse-dot first rest ln col pos)]
              [($? first)
-              (match rest                
-                [(list a b c ...) (list rest)]
-                [_ rest])]
+              (define rest1  (syntax->datum (clean-list (datum->syntax #f rest))))
+              (match rest1                
+                [(list a b c ...) (list rest1)]
+                [_ rest1])]
              [else
               (cons first rest)]))]))
 
@@ -292,7 +439,7 @@
      (parse-dot (read-item) (read-list end) ln col pos)]
     [(rt-char=? char #\$)
      (define first (read-item))
-     (define rest (read-list end))
+     (define rest (syntax->datum (clean-list (datum->syntax #f (read-list end)))))
      (match rest
        [(list a b c ...) (list rest)]
        [_ rest])]
@@ -383,10 +530,10 @@
   (test "2 3 -- sadasd  sad as\n 4 5"  '(2 3 4 5))
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
-  (test "цикл/первый\n ;\n  p points\n  #:когда tau < p[0]\n bonus := bonus + p[1]"
-        '(цикл/первый ((p points) #:когда (tau < (bracket p 0))) (:= bonus (bonus + (bracket p 1)))))
-  (test "цикл/первый (p points; #:когда tau < p[0])\n bonus := bonus + p[2]"
-        '(цикл/первый ((p points) #:когда (tau < (bracket p 0))) (:= bonus (bonus + (bracket p 2)))))
+  (test "цикл/первый\n ;\n  p points\n  #:когда $ tau < p[0]\n bonus := bonus + p[1]"
+        '(цикл/первый ((p points) #:когда (< tau (bracket p 0))) (:= bonus (+ bonus (bracket p 1)))))
+  (test "цикл/первый (p points; #:когда $ tau < p[0])\n bonus := bonus + p[2]"
+        '(цикл/первый ((p points) #:когда (< tau (bracket p 0))) (:= bonus (+ bonus (bracket p 2)))))
   (test "new(point%){move-x 5; move-y 7; move-x 12}"
         '(send+ (new point%) (move-x 5) (move-y 7) (move-x 12)))
   (test "new(point%){move-x 5}"
