@@ -1,6 +1,8 @@
 #lang racket
-(require (for-syntax syntax/parse racket/match) (prefix-in rkt: racket))
-(provide (all-defined-out) (all-from-out racket))
+(require (for-syntax syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
+(provide (rename-out [module-begin #%module-begin])
+         (except-out (all-defined-out) module-begin синоним синоним-данных)
+         (except-out (all-from-out racket) #%module-begin))
 
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
@@ -92,13 +94,8 @@
            (условия остаток ...))]
     [(_) #'(void)]))
 
-
 (define истина #t)
 (define ложь #f)
-
-(define-for-syntax приоритеты (make-hasheq))
-(define-for-syntax (оператор! оп приоритет [ассоциативность 'лево])
-  (hash-set! приоритеты оп (cons приоритет ассоциативность)))
 
 (define (bracket объект поле)
   (cond
@@ -108,3 +105,16 @@
     [else (raise-syntax-error 'квадратные-скобки
                               "У объёкта ~a нет доступа к полям через квадратные скобки"
                               объект)]))
+
+(define-syntax (надо-быстро stx)
+  1)
+
+(define-syntax (module-begin stx)
+  (syntax-case stx ()
+    [(_ body ...)
+     (quasisyntax/loc stx
+       (#%module-begin
+        (require (for-syntax 1/run-fast))
+        (begin-for-syntax (start '#,(syntax-source stx)))
+        body ...
+        (begin-for-syntax (end))))]))

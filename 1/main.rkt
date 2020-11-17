@@ -5,10 +5,16 @@
   #:read my-read
   #:read-syntax my-read-syntax
   #:language-info #(1/language-info get-language-info #f)
-  (require 1/reader)
-  (define (get-info key default f)
-    (define (fallback) (f key default))
-    (case key
-      [(drracket:indentation)
-       (dynamic-require '1/indent 'indent)]
-      [else (fallback)])))
+  #:info (λ (key default f)
+          (define (fallback) (f key default))
+           (case key
+             [(drracket:submit-predicate)
+              (λ (ip _)
+                (define str ((dynamic-require 'racket/port 'port->string) ip))
+                (define l (string-length str))
+                (or (= l 0)
+                    (string=? (substring str (- l 1) l) "\n")))]
+             [(drracket:indentation)
+              (dynamic-require '1/indent 'indent)]
+             [else (fallback)]))
+  (require 1/reader))
