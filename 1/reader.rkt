@@ -53,16 +53,16 @@
 (define (block-comment? c)
   (and (rt-char=? c #\#) (rt-char=? (peek-char-or-special (current-input-port) 1) #\|)))
 
-(define (indentationlevel)
+(define (indentation-level)
   (define indent (accumulate-hspace))
   (define c (peek-char-or-special))
   (cond [(eof-object? c) ""]
         [(comment? c)
          (consume-to-eol!)
-         (indentationlevel)]
+         (indentation-level)]
         [(eqv? c #\newline)
          (read-char)
-         (indentationlevel)]
+         (indentation-level)]
         [else
          (when (rt-char=? c #\;) (read-char))
          (list->string indent)]))
@@ -120,8 +120,7 @@
      (cond
        [(dot? stx)
         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
-       [(operator? stx) => (λ (parsed)
-                             
+       [(operator? stx) => (λ (parsed)                             
                              (apply оператор! (syntax->datum parsed))
                              (indent-read))]
        [else stx])]))
@@ -177,6 +176,9 @@
       [else (loop r (append c (list (car l))) (cdr l))])))
 
 (define sym-= (datum->syntax #f '=))
+(define sym-if (datum->syntax #f 'if))
+(define sym-begin (datum->syntax #f 'begin))
+;(define sym-void (datum->syntax #f 'void))
 
 (define приоритеты (make-hasheq))
 (define (оператор! оп приоритет [ассоциативность 'лево])
@@ -314,6 +316,14 @@
     [(a (~datum :=) . b) #`(:= a #,(clean #'b))]
     [(a ... (~datum :=) b) #'(:= (a ...) b)]
     [(a ... (~datum :=) . b) #`(:= (a ...) #,(clean #'b))]
+    [(если a (~datum тогда) b ... (~datum иначе) c ...)
+     #`(#,sym-if a (#,sym-begin b ...) (#,sym-begin c ...))]
+    [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
+     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) (#,sym-begin c ...))]
+    [(если a (~datum тогда) b ...)
+     #`(#,sym-if a (#,sym-begin b ...) #,(datum->syntax x '(void)))]
+    [(если a ... (~datum тогда) b ...)
+     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) #,(datum->syntax x '(void)))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
     [(a ... (~and dot (~datum |.|)) . b)
@@ -325,36 +335,7 @@
                  (~datum unquote-splicing)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
-    #|
-    [(a (~datum ||) b) #`(|| a b)]
-    [(a (~datum ||) . b) #`(|| a #,(clean #'b))]
-    [(a ... (~datum ||) b) #`(|| #,(clean (datum->syntax x (syntax->datum #'(a ...)))) b)]
-    [(a ... (~datum ||) . b) #`(|| #,(clean (datum->syntax x (syntax->datum #'(a ...))))
-                                   #,(clean #'b))]
-    [(a (~datum &&) b) #'(&& a b)]
-    [(a (~datum &&) . b) #'(&& a #,(clean #'b))]
-    [(a ... (~datum &&) b) #`(&& #,(clean (fix #'(a ...))) b)]
-    [(a ... (~datum &&) . b) #`(&& #,(clean (fix #'(a ...)))
-                                   #,(clean #'b))]
-    |#
     [_ (datum->syntax x (обработать-операторы x))]))
-
-(define (fix l)
-  (define orig (car (syntax-e l)))
-  (define last-orig (last (syntax-e l)))
-  (define srcloc
-    (list (syntax-source orig)
-          (syntax-line orig)
-          (syntax-column orig)
-          (syntax-position orig)
-          (and
-           (syntax-position last-orig)
-           (syntax-position orig)
-           (syntax-span last-orig)
-           (+ (- (syntax-position last-orig)
-                 (syntax-position orig))
-              (syntax-span last-orig)))))
-  (datum->syntax orig (syntax->datum l) srcloc orig))
 
 (define (clean-list x)
   (syntax-parse x
@@ -386,7 +367,7 @@
      (read-char) (read-char) (read-block level)]
     [(rt-char=? char #\newline)
      (read-char)     
-     (define next-level (indentationlevel))
+     (define next-level (indentation-level))
      (if (indentation>? next-level level)
          (read-blocks next-level)
          (cons next-level null))]

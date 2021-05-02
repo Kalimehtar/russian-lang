@@ -10,7 +10,7 @@
            (case key
              [(drracket:submit-predicate)
               (λ (ip _)
-                (define str ((dynamic-require 'racket/port 'port->string) ip))
+                (define str ((dynamic-require 'racket/string 'string-trim) ((dynamic-require 'racket/port 'port->string) ip) " " #:repeat? #t))
                 (define l (string-length str))
                 (or (= l 0)
                     (string=? (substring str (- l 1) l) "\n")))]

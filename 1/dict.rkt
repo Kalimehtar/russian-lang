@@ -1,8 +1,9 @@
-#lang racket
-(require (for-syntax syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
+#lang racket/base
+(require racket/match racket/vector)
+(require (for-syntax racket/base syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним синоним-данных)
-         (except-out (all-from-out racket) #%module-begin))
+         (except-out (all-from-out racket/base) #%module-begin))
 
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
@@ -22,7 +23,7 @@
          [(vector? объект) (vector-ref объект поле)]
          [(hash? объект) (hash-ref объект поле #f)]
          [else (raise-syntax-error 'квадратные-скобки
-                                   "У объёкта ~a нет доступа к полям через квадратные скобки"
+                                   "У объекта ~a нет доступа к полям через квадратные скобки"
                                    объект)])]
     [(_ а б) #'(let () (set! а б) а)]))
 
@@ -36,23 +37,31 @@
 (define-syntax (синоним-данных stx)
   (syntax-case stx ()
     [(_ старый новый)     
-     #'(begin
-         (define-match-expander новый
-           (λ (stx)
-             (syntax-case stx ()
-               [(_ . a) #'(старый . a)]))
-           (λ (stx)
-             (syntax-case stx ()
-               [(_ . a) #'(старый . a)]))))]))
+     #'(define-match-expander новый
+         (λ (stx)
+           (syntax-case stx ()
+             [(_ . a) #'(старый . a)]))
+         (λ (stx)
+           (syntax-case stx ()
+             [(_ . a) #'(старый . a)])))]))
 
-(синоним if если)
 (синоним let пусть)
+(синоним require использовать)
+(синоним provide предоставлять)
 (синоним begin команды)
 (синоним begin-for-syntax при-компиляции)
 (синоним define-syntax определение-синтаксиса)
 (синоним define-syntax-rule определение-синтаксисического-правила)
 (синоним or ||)
 (синоним and &&)
+(синоним void пусто)
+(синоним if если)
+(синоним display вывести)
+(синоним displayln вывести/пс)
+(синоним write написать)
+(синоним writeln написать/пс)
+(синоним read прочитать)
+(синоним read-line прочитать-строку)
 (= == rkt:=)
 (= (/= x y) (not (== x y)))
 (= (// x y) (quotient x y))
@@ -61,8 +70,15 @@
 (синоним-данных list список)
 (синоним-данных vector массив)
 
+(= (++ коллекция . коллекции)
+   (cond
+     [(list? коллекция) (apply append коллекция коллекции)]
+     [(string? коллекция) (apply string-append коллекция коллекции)]
+     [(vector? коллекция) (apply vector-append коллекция коллекции)]))
+
 (module syn racket
-  (provide варианты-синтаксиса)
+  (require syntax/parse)
+  (provide варианты-синтаксиса разобрать-синтаксис)  
   (define (translate e)
     (define dict
       '(("bad syntax" . "ошибка синтаксиса")))
@@ -78,9 +94,13 @@
       [else e]))
   (define-syntax (варианты-синтаксиса stx)
     (syntax-case stx ()
-      [(_ a ...)
-       #'(with-handlers ([(λ (e) #t) (λ (e) (raise (translate e)))])
-           (syntax-case a ...))])))
+      [(_ правила ...)
+       #'(with-handlers ([exn:fail:syntax? (λ (e) (raise (translate e)))])
+           (syntax-case правила ...))]))
+  (define-syntax (разобрать-синтаксис stx)
+    (syntax-case stx ()
+      [(_ правила ...)
+       #'(syntax-parse правила ...)])))
 (require (for-syntax 'syn))
 
 (определение-синтаксиса (условия stx)
@@ -92,6 +112,8 @@
      #'(if условие
            (begin действия ...)
            (условия остаток ...))]
+    [(_ (иначе действия ...) остаток ...)
+     #'(begin действия ...)]
     [(_) #'(void)]))
 
 (define истина #t)
@@ -103,7 +125,7 @@
     [(vector? объект) (vector-ref объект поле)]
     [(hash? объект) (hash-ref объект поле #f)]
     [else (raise-syntax-error 'квадратные-скобки
-                              "У объёкта ~a нет доступа к полям через квадратные скобки"
+                              "У объекта ~a нет доступа к полям через квадратные скобки"
                               объект)]))
 
 (define-syntax (надо-быстро stx)
