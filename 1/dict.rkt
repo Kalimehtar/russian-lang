@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/match racket/vector)
+(require racket/match racket/vector racket/string)
 (require (for-syntax racket/base syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним синоним-данных)
@@ -54,15 +54,49 @@
 (синоним define-syntax-rule определение-синтаксисического-правила)
 (синоним or ||)
 (синоним and &&)
-(синоним void пусто)
 (синоним if если)
-(синоним display вывести)
-(синоним displayln вывести/пс)
-(синоним write написать)
-(синоним writeln написать/пс)
+(синоним open-output-string открыть-запись-в-строку)
+(синоним get-output-string получить-записанную-строку)
+(синоним write-string записать-строку)
+(синоним string-replace заменить-в-строке)
+(= (заменить-логические-значения строка)
+   (заменить-в-строке
+       (заменить-в-строке строка "#t" "истина")
+       "#f" "ложь"))
+(= (вывести что [порт (current-output-port)])
+   (= строковый-порт (открыть-запись-в-строку))
+   (display что строковый-порт)
+   (записать-строку
+     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     порт))
+(= (вывести/пс что [порт (current-output-port)])
+   (вывести что порт)
+   (newline порт))
+(= (записать что [порт (current-output-port)])
+   (= строковый-порт (открыть-запись-в-строку))
+   (write что строковый-порт)
+   (записать-строку
+     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     порт))
+(= (записать/пс что [порт (current-output-port)])
+   (записать что порт)
+   (newline порт))
+
+(= old-printer (global-port-print-handler))
+;(= old-compiler  )
+
+(= (printer что [порт (current-output-port)] [глубина 0])
+   (= строковый-порт (открыть-запись-в-строку))
+   (old-printer что строковый-порт глубина)
+   (записать-строку
+     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     порт))
+
 (синоним read прочитать)
 (синоним read-line прочитать-строку)
-(= == rkt:=)
+(= == equal?)
+(= === eqv?)
+(= пусто (void))
 (= (/= x y) (not (== x y)))
 (= (// x y) (quotient x y))
 (= (% x y) (remainder x y))
@@ -116,8 +150,8 @@
      #'(begin действия ...)]
     [(_) #'(void)]))
 
-(define истина #t)
-(define ложь #f)
+(= истина #t)
+(= ложь #f)
 
 (define (bracket объект поле)
   (cond
@@ -137,6 +171,7 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        (begin-for-syntax (start '#,(syntax-source stx)))
+        (global-port-print-handler printer)
+        (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
         (begin-for-syntax (end))))]))

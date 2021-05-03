@@ -9,12 +9,26 @@
           (define (fallback) (f key default))
            (case key
              [(drracket:submit-predicate)
-              (λ (ip _)
-                (define str ((dynamic-require 'racket/string 'string-trim) ((dynamic-require 'racket/port 'port->string) ip) " " #:repeat? #t))
-                (define l (string-length str))
-                (or (= l 0)
-                    (string=? (substring str (- l 1) l) "\n")))]
+              (let ([string-trim (dynamic-require 'racket/string 'string-trim)]
+                    [port->string (dynamic-require 'racket/port 'port->string)])
+                (λ (ip _)
+                  (define str (string-trim (port->string ip) " " #:repeat? #t))
+                  (define l (string-length str))
+                  (or (= l 0)
+                      (string=? (substring str (- l 1) l) "\n"))))]
              [(drracket:indentation)
               (dynamic-require '1/indent 'indent)]
+             [(drracket:default-extension) "1"]
+             [(drracket:default-filters)
+              `(["Исходники Racket" "*.rkt;*.scrbl;*.rktl;*.rktd;*.ss;*.scm"]
+                ["Исходники программ" "*.1"]
+                ["Любые" "*.*"])]
+             [(color-lexer)
+              (let ([racket-lexer (dynamic-require 'syntax-color/racket-lexer 'racket-lexer)])
+                (λ (in)
+                  (define-values (str type r1 r2 r3) (racket-lexer in))
+                  (if (or (equal? str "истина") (equal? str "ложь"))
+                      (values str 'constant r1 r2 r3)
+                      (values str type r1 r2 r3))))]
              [else (fallback)]))
   (require 1/reader))

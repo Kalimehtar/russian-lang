@@ -89,7 +89,6 @@
       (rec)))
   (read-char) (read-char) (rec) (read-char) (read-char))
      
-
 (define (consume-whitespaces!)
   (define c (peek-char-or-special))
   (cond
@@ -350,6 +349,16 @@
     [(list) (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
     [(list-rest a ... b) (cons first rest)]))
 
+(define (expand-booleans x)
+  (cond
+    [(syntax? x)
+     (define sym (syntax-e x))
+     (case sym
+       [(истина) (datum->syntax x #t)]
+       [(ложь) (datum->syntax x #f)]
+       [else x])]
+    [else x]))
+
 (define (read-block level)
   (define char (peek-char-or-special))
   (cond
@@ -464,20 +473,20 @@
               (clean-list (datum->syntax #f (read-list #\})))]
              [else (read-syntax)]))
          (let loop ([res res])
-         (cond
-           [(rt-char=? (peek-char-or-special) #\()
-            (read-char)
-            (loop (datum->syntax #f (cons res (clean-list (datum->syntax #f (read-list #\)))))))]
-           [(rt-char=? (peek-char-or-special) #\[)
-            (read-char)
-            (loop (datum->syntax #f (cons 'bracket (cons res (read-list #\])))))]
-           [(rt-char=? (peek-char-or-special) #\{)
-            (read-char)
-            (define l (clean-list (datum->syntax #f (read-list #\}))))
-            (loop (datum->syntax #f
-                                 (cons (if (cons? (car (syntax->datum l))) 'send+ 'send)
-                                       (cons res l))))]
-           [else res]))]))
+           (cond
+             [(rt-char=? (peek-char-or-special) #\()
+              (read-char)
+              (loop (datum->syntax #f (cons res (clean-list (datum->syntax #f (read-list #\)))))))]
+             [(rt-char=? (peek-char-or-special) #\[)
+              (read-char)
+              (loop (datum->syntax #f (cons 'bracket (cons res (read-list #\])))))]
+             [(rt-char=? (peek-char-or-special) #\{)
+              (read-char)
+              (define l (clean-list (datum->syntax #f (read-list #\}))))
+              (loop (datum->syntax #f
+                                   (cons (if (cons? (car (syntax->datum l))) 'send+ 'send)
+                                         (cons res l))))]
+             [else (expand-booleans res)]))]))
 
 (define (parse-block-dot stx [next-blocks null])
   (cond
