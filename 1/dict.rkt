@@ -83,8 +83,6 @@
    (newline порт))
 
 (= old-printer (global-port-print-handler))
-;(= old-compiler  )
-
 (= (printer что [порт (current-output-port)] [глубина 0])
    (= строковый-порт (открыть-запись-в-строку))
    (old-printer что строковый-порт глубина)
@@ -171,7 +169,7 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        (global-port-print-handler printer)
+        ;(global-port-print-handler printer)
         (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
         (begin-for-syntax (end))))]))

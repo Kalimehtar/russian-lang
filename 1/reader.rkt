@@ -471,7 +471,7 @@
              [(rt-char=? char #\{)
               (read-char)
               (clean-list (datum->syntax #f (read-list #\})))]
-             [else (read-syntax)]))
+             [else (read-syntax (current-source-name))]))
          (let loop ([res res])
            (cond
              [(rt-char=? (peek-char-or-special) #\()

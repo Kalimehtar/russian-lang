@@ -20,9 +20,7 @@
               (dynamic-require '1/indent 'indent)]
              [(drracket:default-extension) "1"]
              [(drracket:default-filters)
-              `(["Исходники Racket" "*.rkt;*.scrbl;*.rktl;*.rktd;*.ss;*.scm"]
-                ["Исходники программ" "*.1"]
-                ["Любые" "*.*"])]
+              `(["Исходники программ" "*.1"])]
              [(color-lexer)
               (let ([racket-lexer (dynamic-require 'syntax-color/racket-lexer 'racket-lexer)])
                 (λ (in)
