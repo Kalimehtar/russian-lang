@@ -177,7 +177,6 @@
 (define sym-= (datum->syntax #f '=))
 (define sym-if (datum->syntax #f 'if))
 (define sym-begin (datum->syntax #f 'begin))
-;(define sym-void (datum->syntax #f 'void))
 
 (define приоритеты (make-hasheq))
 (define (оператор! оп приоритет [ассоциативность 'лево])
@@ -193,6 +192,8 @@
 (оператор! '/= 4)
 (оператор! '< 4)
 (оператор! '> 4)
+(оператор! '<= 4)
+(оператор! '>= 4)
 (оператор! '|| 3)
 (оператор! '&& 3)
 ;(оператор! #':= 0 'право)

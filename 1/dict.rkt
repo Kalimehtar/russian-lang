@@ -3,7 +3,7 @@
 (require (for-syntax racket/base syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним синоним-данных)
-         (except-out (all-from-out racket/base) #%module-begin))
+         #%top-interaction #%app #%datum + - / * < > <= >=)
 
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
@@ -98,6 +98,7 @@
 (= (/= x y) (not (== x y)))
 (= (// x y) (quotient x y))
 (= (% x y) (remainder x y))
+(= подстрока substring)
 (синоним-данных cons пара)
 (синоним-данных list список)
 (синоним-данных vector массив)
