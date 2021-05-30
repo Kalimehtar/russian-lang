@@ -1,10 +1,11 @@
 #lang racket/base
-(require racket/match racket/vector racket/string)
-(require (for-syntax racket/base syntax/parse racket/match 1/run-fast) (prefix-in rkt: racket))
+(require racket/match racket/vector racket/string racket/class)
+(require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
-         (except-out (all-defined-out) module-begin синоним синоним-данных)
-         #%top-interaction #%app #%datum + - / * < > <= >=)
+         (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
+         #%top-interaction #%app #%datum + - / * < > <= >= #%top цитата квазицитата)
 
+;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
     [(_ (значения . а) б) #'(define-values а б)]
@@ -34,40 +35,41 @@
          (syntax-case stx ()
            [(_ . a) #'(старый . a)]))]))
 
-(define-syntax (синоним-данных stx)
-  (syntax-case stx ()
-    [(_ старый новый)     
-     #'(define-match-expander новый
-         (λ (stx)
-           (syntax-case stx ()
-             [(_ . a) #'(старый . a)]))
-         (λ (stx)
-           (syntax-case stx ()
-             [(_ . a) #'(старый . a)])))]))
-
+(синоним quote цитата)
+(синоним quasiquote квазицитата)
+(синоним unquote не-цитируя)
+(синоним unquote-splicing не-цитируя-список)
 (синоним let пусть)
 (синоним require использовать)
 (синоним provide предоставлять)
-(синоним begin команды)
+(синоним begin блок)
 (синоним begin-for-syntax при-компиляции)
 (синоним define-syntax определение-синтаксиса)
 (синоним define-syntax-rule определение-синтаксисического-правила)
 (синоним or ||)
 (синоним and &&)
 (синоним if если)
+;; TODO: так нельзя, надо определять новые функции, иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
 (синоним open-output-string открыть-запись-в-строку)
 (синоним get-output-string получить-записанную-строку)
 (синоним write-string записать-строку)
 (синоним string-replace заменить-в-строке)
-(= (заменить-логические-значения строка)
-   (заменить-в-строке
-       (заменить-в-строке строка "#t" "истина")
-       "#f" "ложь"))
+(= (пустой? список) (null? список))
+(= (русифицировать-вывод строка)
+   (= (заменить-по-словарю строка словарь)
+      (если (пустой? словарь)
+            строка
+            (заменить-по-словарю (заменить-в-строке строка (caar словарь) (cdar словарь)) (cdr словарь))))
+    (заменить-по-словарю строка
+                  '(("#t" . "истина")
+                    ("#f" . "ложь")
+                    ("#<procedure:" . "#<функция:"))))
+
 (= (вывести что [порт (current-output-port)])
    (= строковый-порт (открыть-запись-в-строку))
    (display что строковый-порт)
    (записать-строку
-     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     (русифицировать-вывод (получить-записанную-строку строковый-порт))
      порт))
 (= (вывести/пс что [порт (current-output-port)])
    (вывести что порт)
@@ -76,7 +78,7 @@
    (= строковый-порт (открыть-запись-в-строку))
    (write что строковый-порт)
    (записать-строку
-     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     (русифицировать-вывод (получить-записанную-строку строковый-порт))
      порт))
 (= (записать/пс что [порт (current-output-port)])
    (записать что порт)
@@ -87,7 +89,7 @@
    (= строковый-порт (открыть-запись-в-строку))
    (old-printer что строковый-порт глубина)
    (записать-строку
-     (заменить-логические-значения (получить-записанную-строку строковый-порт))
+     (русифицировать-вывод (получить-записанную-строку строковый-порт))
      порт))
 
 (синоним read прочитать)
@@ -98,10 +100,16 @@
 (= (/= x y) (not (== x y)))
 (= (// x y) (quotient x y))
 (= (% x y) (remainder x y))
-(= подстрока substring)
-(синоним-данных cons пара)
-(синоним-данных list список)
-(синоним-данных vector массив)
+(= (подстрока str start [end (string-length str)]) (substring str start end))
+(= (пара параметр1 параметр2) (cons параметр1 параметр2))
+(= (пара? т) (rkt:cons? т))
+(= (список . т) (apply list т))
+(= (список? т) (list? т))
+(= (массив . т) (apply vector т))
+(= (массив? т) (vector? т))
+
+(синоним send отправить)
+(синоним send+ отправить+)
 
 (= (++ коллекция . коллекции)
    (cond
@@ -152,7 +160,7 @@
 (= истина #t)
 (= ложь #f)
 
-(define (bracket объект поле)
+(define (квадратные-скобки объект поле)
   (cond
     [(list? объект) (list-ref объект поле)]
     [(vector? объект) (vector-ref объект поле)]
@@ -170,7 +178,7 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        ;(global-port-print-handler printer)
+        (global-port-print-handler printer)
         (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
         (begin-for-syntax (end))))]))

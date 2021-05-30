@@ -175,8 +175,8 @@
       [else (loop r (append c (list (car l))) (cdr l))])))
 
 (define sym-= (datum->syntax #f '=))
-(define sym-if (datum->syntax #f 'if))
-(define sym-begin (datum->syntax #f 'begin))
+(define sym-if (datum->syntax #f 'если))
+(define sym-begin (datum->syntax #f 'блок))
 
 (define приоритеты (make-hasheq))
 (define (оператор! оп приоритет [ассоциативность 'лево])
@@ -449,17 +449,17 @@
          (datum->syntax #f '|;| (vector (current-source-name) ln col pos 1))]
         [(rt-char=? char #\`)
          (read-char)
-         (readquote 'quasiquote)]
+         (readquote 'квазицитата)]
         [(rt-char=? char #\')
          (read-char)
-         (readquote 'quote)]
+         (readquote 'цитата)]
         [(rt-char=? char #\,)
          (read-char)
          (cond
            [(eqv? (peek-char-or-special) #\@)
             (read-char)
-            (readquote 'unquote-splicing)]
-           [else (readquote 'unquote)])]
+            (readquote 'не-цитируя-список)]
+           [else (readquote 'не-цитируя)])]
         [else
          (define res
            (cond
@@ -480,12 +480,12 @@
               (loop (datum->syntax #f (cons res (clean-list (datum->syntax #f (read-list #\)))))))]
              [(rt-char=? (peek-char-or-special) #\[)
               (read-char)
-              (loop (datum->syntax #f (cons 'bracket (cons res (read-list #\])))))]
+              (loop (datum->syntax #f (cons 'квадратные-скобки (cons res (read-list #\])))))]
              [(rt-char=? (peek-char-or-special) #\{)
               (read-char)
               (define l (clean-list (datum->syntax #f (read-list #\}))))
               (loop (datum->syntax #f
-                                   (cons (if (cons? (car (syntax->datum l))) 'send+ 'send)
+                                   (cons (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить)
                                          (cons res l))))]
              [else (expand-booleans res)]))]))
 
