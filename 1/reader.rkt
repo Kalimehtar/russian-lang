@@ -175,7 +175,8 @@
       [else (loop r (append c (list (car l))) (cdr l))])))
 
 (define sym-= (datum->syntax #f '=))
-(define sym-if (datum->syntax #f 'если))
+(define sym-if (datum->syntax #f 'if))
+(define sym-void (datum->syntax #f 'void))
 (define sym-begin (datum->syntax #f 'блок))
 
 (define приоритеты (make-hasheq))
@@ -196,7 +197,7 @@
 (оператор! '>= 4)
 (оператор! '|| 3)
 (оператор! '&& 3)
-;(оператор! #':= 0 'право)
+(оператор! '? 1)
 
 (define (оператор? stx)
   (define s (syntax-e stx))
@@ -323,7 +324,7 @@
     [(если a (~datum тогда) b ...)
      #`(#,sym-if a (#,sym-begin b ...) #,(datum->syntax x '(void)))]
     [(если a ... (~datum тогда) b ...)
-     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) #,(datum->syntax x '(void)))]
+     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) (#,sym-void))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
     [(a ... (~and dot (~datum |.|)) . b)
