@@ -3,7 +3,7 @@
 (require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= #%top цитата квазицитата)
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата)
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 (define-match-expander массив
@@ -171,7 +171,7 @@
 
 (определение-синтаксиса (условия stx)
   (варианты-синтаксиса stx (=> иначе)
-    [(_ (условие => функция) остаток ...)
+    [(_ (=> условие функция) остаток ...)
      #'(let ([t условие])
          (if t (функция t) (условия остаток ...)))]
     [(_ (условие действия ...) остаток ...)
