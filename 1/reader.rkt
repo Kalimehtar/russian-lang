@@ -175,7 +175,7 @@
       [else (loop r (append c (list (car l))) (cdr l))])))
 
 (define sym-= (datum->syntax #f '=))
-(define sym-if (datum->syntax #f 'if))
+(define sym-if (datum->syntax #f '?))
 (define sym-void (datum->syntax #f 'void))
 (define sym-begin (datum->syntax #f 'блок))
 

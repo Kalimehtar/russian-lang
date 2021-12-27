@@ -3,7 +3,9 @@
 (require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата)
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата
+         определение-синтаксиса
+         (for-syntax варианты-синтаксиса разобрать-синтаксис))
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 (define-match-expander массив
