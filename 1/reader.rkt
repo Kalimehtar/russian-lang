@@ -176,7 +176,7 @@
 
 (define sym-= (datum->syntax #f '=))
 (define sym-if (datum->syntax #f '?))
-(define sym-void (datum->syntax #f 'void))
+(define sym-void (datum->syntax #f 'пусто))
 (define sym-begin (datum->syntax #f 'блок))
 
 (define приоритеты (make-hasheq))
@@ -202,8 +202,10 @@
 (define (оператор? stx)
   (define s (syntax-e stx))
   (define (имя-оператора? имя)
-    (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
-        (regexp-match #rx"^\\^.*\\^$" имя)))
+    (and
+     (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
+         (regexp-match #rx"^\\^.*\\^$" имя))
+     (not (string=? имя "..."))))
   (and (symbol? s)
        (имя-оператора? (symbol->string s))))
 
@@ -322,9 +324,9 @@
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
      #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a (~datum тогда) b ...)
-     #`(#,sym-if a (#,sym-begin b ...) #,(datum->syntax x '(void)))]
+     #`(#,sym-if a (#,sym-begin b ...) #,sym-void)]
     [(если a ... (~datum тогда) b ...)
-     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) (#,sym-void))]
+     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) #,sym-void)]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
     [(a ... (~and dot (~datum |.|)) . b)
@@ -427,7 +429,12 @@
     [(rt-char=? char end)
      (read-char)
      null]
-    [(rt-char=? char #\.)
+    [(and
+      (rt-char=? char #\.)
+      (let ([next (peek-char-or-special (current-input-port) 1)])
+        (or (rt-char=? next #\newline)
+            (rt-char=? next #\space)
+            (rt-char=? next #\tab))))
      (parse-dot (read-item) (read-list end) ln col pos)]
     [(rt-char=? char #\$)
      (define first (read-item))
@@ -442,7 +449,12 @@
   (define char (peek-char-or-special))
   (define-values (ln col pos) (port-next-location (current-input-port)))
   (cond [(eof-object? char) char]
-        [(rt-char=? char #\.)
+        [(and
+          (rt-char=? char #\.)
+          (let ([next (peek-char-or-special (current-input-port) 1)])
+            (or (rt-char=? next #\newline)
+                (rt-char=? next #\space)
+                (rt-char=? next #\tab))))
          (read-char)
          (datum->syntax #f '|.| (vector (current-source-name) ln col pos 1))]
         [(rt-char=? char #\;)
