@@ -3,9 +3,7 @@
 (require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата
-         определение-синтаксиса
-         (for-syntax варианты-синтаксиса разобрать-синтаксис))
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата)
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 (define-match-expander массив
@@ -120,6 +118,7 @@
 (синоним read прочитать)
 (синоним read-line прочитать-строку)
 (синоним lambda функция)
+(синоним when когда)
 (= (ошибка . т) (apply error т))
 (= == equal?)
 (= === eqv?)
@@ -134,6 +133,8 @@
 (= (массив? т) (vector? т))
 (= (длина-массива т) (vector-length т))
 (= (аргументы-командной-строки) (current-command-line-arguments))
+(= (читая-файл имя обработка) (call-with-input-file имя обработка))
+(= (в-строках порт) (in-lines порт))
 
 (синоним send отправить)
 (синоним send+ отправить+)
@@ -176,12 +177,12 @@
     [(_ (=> условие функция) остаток ...)
      #'(let ([t условие])
          (if t (функция t) (условия остаток ...)))]
+    [(_ (иначе действия ...) остаток ...)
+     #'(begin действия ...)]
     [(_ (условие действия ...) остаток ...)
      #'(if условие
            (begin действия ...)
            (условия остаток ...))]
-    [(_ (иначе действия ...) остаток ...)
-     #'(begin действия ...)]
     [(_) #'(void)]))
 
 (определение-синтаксиса (для синтаксис)

@@ -1,5 +1,5 @@
 #lang racket
-(require syntax/readerr syntax/srcloc syntax/parse racket/list)
+(require syntax/readerr syntax/srcloc syntax/parse racket/list syntax/stx)
 (provide my-read my-read-syntax)
 
 (define (my-read [p (current-input-port)]) (syntax->datum (my-read-syntax #f p)))
@@ -9,7 +9,7 @@
   (with-handlers ([(λ (e) #t) (λ (e) (raise (translate e)))])
     (parameterize ([current-source-name source-name]
                    [current-input-port port])
-      (indent-read))))
+      (разобрать-список-с-одной-точкой (indent-read)))))
 
 (define (translate e)
   (define dict
@@ -197,15 +197,19 @@
 (оператор! '>= 4)
 (оператор! '|| 3)
 (оператор! '&& 3)
-(оператор! '? 1)
+(оператор! '? 2)
+(оператор! ':= 1)
+(оператор! '= 0)
 
-(define (оператор? stx)
+(define
+  (оператор? stx)
   (define s (syntax-e stx))
   (define (имя-оператора? имя)
     (and
      (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
          (regexp-match #rx"^\\^.*\\^$" имя))
-     (not (string=? имя "..."))))
+     (not (string=? имя "..."))
+     (not (string=? имя "."))))
   (and (symbol? s)
        (имя-оператора? (symbol->string s))))
 
@@ -307,18 +311,8 @@
                                          (cons элем лево))])))])]
     [else stx]))
 
-(define (clean x)
+(define (обработать-если x)
   (syntax-parse x
-    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
-    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
-    [(a (~datum =) b) #`(#,sym-= #,(clean #'a) #,(clean #'b))]
-    [((a ...) (~datum =) b ...) #`(#,sym-= #,(clean #'(a ...)) b ...)]
-    [(a (~datum =) . b) #`(#,sym-= a b)]
-    [(a c ... (~datum =) . b) #`(#,sym-= #,(clean #'(a c ...)) . b)]
-    [(a (~datum :=) b) #'(:= a b)]
-    [(a (~datum :=) . b) #`(:= a #,(clean #'b))]
-    [(a ... (~datum :=) b) #'(:= (a ...) b)]
-    [(a ... (~datum :=) . b) #`(:= (a ...) #,(clean #'b))]
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
      #`(#,sym-if a (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
@@ -327,10 +321,14 @@
      #`(#,sym-if a (#,sym-begin b ...) #,sym-void)]
     [(если a ... (~datum тогда) b ...)
      #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) #,sym-void)]
+    [_ x]))
+
+(define (clean x)
+  (define y (datum->syntax x (обработать-операторы (обработать-если x))))
+  (syntax-parse y
+    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
+    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
-    [(a ... b (~datum |.|) c . d) #'(c a ... b d)]
-    [(a ... (~and dot (~datum |.|)) . b)
-     (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
     [((~and q
             (~or (~datum quote)
                  (~datum unquote)
@@ -338,18 +336,26 @@
                  (~datum unquote-splicing)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
-    [_ (datum->syntax x (обработать-операторы x))]))
+    [_ y]))
 
 (define (clean-list x)
   (syntax-parse x
     [(a ... (~datum |;|) . b) (clean (split-sc x))]
     [_ (clean x)]))
 
+(define (разобрать-список-с-одной-точкой x)
+  (syntax-parse x
+    [(a ... (~datum |.|) c) #'(a ... . c)]
+    [(a ... (~and dot (~datum |.|)) . b)
+     (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
+    [(a ...) (datum->syntax x (stx-map разобрать-список-с-одной-точкой x))]
+    [_ x]))
+
 (define current-source-name (make-parameter #f))
 
 (define (parse-dot first rest ln col pos)
   (match rest
-    [(list x) x]
+    [(list x) (list first x)]
     [(list) (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
     [(list-rest a ... b) (cons first rest)]))
 
@@ -541,4 +547,9 @@
   (test "new(point%){move-x 5; move-y 7; move-x 12}"
         '(отправить+ (new point%) (move-x 5) (move-y 7) (move-x 12)))
   (test "new(point%){move-x 5}"
-        '(отправить (new point%) move-x 5)))
+        '(отправить (new point%) move-x 5))
+  (test "если 2 > 3 тогда 3 иначе 2"
+        '(? (> 2 3) (блок 3) (блок 2)))
+  (test "если 2 > 3 тогда\n  a := 3\n  иначе\n  a := 2"
+        '(? (> 2 3) (блок (:= a 3)) (блок (:= a 2))))
+  (test "..." '...))
