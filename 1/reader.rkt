@@ -409,7 +409,7 @@
              [(eof-object? rest) first]
              [(dot? first) (parse-dot first rest ln col pos)]
              [($? first)
-              (define rest1  (syntax->datum (clean-list (datum->syntax #f rest))))
+              (define rest1 (syntax-e (clean-list (datum->syntax #f rest))))
               (match rest1                
                 [(list a b c ...) (list rest1)]
                 [_ rest1])]
