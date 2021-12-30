@@ -33,9 +33,14 @@
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
     [(_ (значения . а) б) #'(define-values а б)]
+    [(_ (значения . а) б в ...) #'(define-values а (б в ...))]
     [(_ (шаблон а) б) #'(match-define а б)]
+    [(_ (шаблон а) б в ...) #'(match-define а (б в ...))]
     [(_ (шаблоны . а) б) #'(match-define-values а б)]
-    [(_ а . б) #'(define а . б)]))
+    [(_ (шаблоны . а) б в ...) #'(match-define-values а (б в ...))]
+    [(_ (а ...) . б) #'(define (а ...) . б)]
+    [(_ а б) #'(define а б)]
+    [(_ а б в ...) #'(define а (б в ...))]))
 
 (define (значения . a) (apply values a))
 
@@ -77,9 +82,9 @@
 (синоним get-output-string получить-записанную-строку)
 (синоним write-string записать-строку)
 (синоним string-replace заменить-в-строке)
-(= (пустой? список) (null? список))
-(= (русифицировать-вывод строка)
-   (= (заменить-по-словарю строка словарь)
+(define (пустой? список) (null? список))
+(define (русифицировать-вывод строка)
+   (define (заменить-по-словарю строка словарь)
       (if (пустой? словарь)
           строка
           (заменить-по-словарю (заменить-в-строке строка (caar словарь) (cdar словарь)) (cdr словарь))))
@@ -88,28 +93,28 @@
                     ("#f" . "ложь")
                     ("#<procedure:" . "#<функция:"))))
 
-(= (вывести что [порт (current-output-port)])
-   (= строковый-порт (открыть-запись-в-строку))
+(define (вывести что [порт (current-output-port)])
+   (define строковый-порт (открыть-запись-в-строку))
    (display что строковый-порт)
    (записать-строку
      (русифицировать-вывод (получить-записанную-строку строковый-порт))
      порт))
-(= (вывести/пс что [порт (current-output-port)])
+(define (вывести/пс что [порт (current-output-port)])
    (вывести что порт)
    (newline порт))
-(= (записать что [порт (current-output-port)])
-   (= строковый-порт (открыть-запись-в-строку))
+(define (записать что [порт (current-output-port)])
+   (define строковый-порт (открыть-запись-в-строку))
    (write что строковый-порт)
    (записать-строку
      (русифицировать-вывод (получить-записанную-строку строковый-порт))
      порт))
-(= (записать/пс что [порт (current-output-port)])
+(define (записать/пс что [порт (current-output-port)])
    (записать что порт)
    (newline порт))
 
-(= old-printer (global-port-print-handler))
-(= (printer что [порт (current-output-port)] [глубина 0])
-   (= строковый-порт (открыть-запись-в-строку))
+(define old-printer (global-port-print-handler))
+(define (printer что [порт (current-output-port)] [глубина 0])
+   (define строковый-порт (открыть-запись-в-строку))
    (old-printer что строковый-порт глубина)
    (записать-строку
      (русифицировать-вывод (получить-записанную-строку строковый-порт))
@@ -119,27 +124,27 @@
 (синоним read-line прочитать-строку)
 (синоним lambda функция)
 (синоним when когда)
-(= (ошибка . т) (apply error т))
-(= == equal?)
-(= === eqv?)
-(= пусто (void))
-(= (/= x y) (not (== x y)))
-(= (// x y) (quotient x y))
-(= (% x y) (remainder x y))
-(= (подстрока str start [end (string-length str)]) (substring str start end))
-(= (пара параметр1 параметр2) (cons параметр1 параметр2))
-(= (пара? т) (rkt:cons? т))
-(= (список? т) (list? т))
-(= (массив? т) (vector? т))
-(= (длина-массива т) (vector-length т))
-(= (аргументы-командной-строки) (current-command-line-arguments))
-(= (читая-файл имя обработка) (call-with-input-file имя обработка))
-(= (в-строках порт) (in-lines порт))
+(define (ошибка . т) (apply error т))
+(define == equal?)
+(define === eqv?)
+(define пусто (void))
+(define (/= x y) (not (== x y)))
+(define (// x y) (quotient x y))
+(define (% x y) (remainder x y))
+(define (подстрока str start [end (string-length str)]) (substring str start end))
+(define (пара параметр1 параметр2) (cons параметр1 параметр2))
+(define (пара? т) (rkt:cons? т))
+(define (список? т) (list? т))
+(define (массив? т) (vector? т))
+(define (длина-массива т) (vector-length т))
+(define (аргументы-командной-строки) (current-command-line-arguments))
+(define (читая-файл имя обработка) (call-with-input-file имя обработка))
+(define (в-строках порт) (in-lines порт))
 
 (синоним send отправить)
 (синоним send+ отправить+)
 
-(= (++ коллекция . коллекции)
+(define (++ коллекция . коллекции)
    (cond
      [(list? коллекция) (apply append коллекция коллекции)]
      [(string? коллекция) (apply string-append коллекция коллекции)]
@@ -199,8 +204,8 @@
     [(_ ИМЯ (А Б) . Г) #'(let ИМЯ ((А Б)) Г)]
     [(_ . А) #'(let . А)]))
 
-(= истина #t)
-(= ложь #f)
+(define истина #t)
+(define ложь #f)
 
 (define (квадратные-скобки объект поле)
   (cond
