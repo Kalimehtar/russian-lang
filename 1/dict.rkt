@@ -30,6 +30,16 @@
       [(_ pat ...)
        #'(list pat ...)])))
 
+(define-match-expander пара
+  (λ (stx)
+    (syntax-case stx ()
+      [(_ pat1 pat2)
+       #'(cons pat1 pat2)]))
+  (λ (stx)
+    (syntax-case stx ()
+      [(_ a b)
+       #'(cons a b)])))
+
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
     [(_ (значения . а) б) #'(define-values а б)]
@@ -51,7 +61,9 @@
      #'(cond
          [(vector? объект) (vector-set! объект поле)]
          [(hash? объект) (hash-set! объект поле)]
-         [else (raise-syntax-error 'квадратные-скобки
+         [(string? объект) (string-set! объект поле)]
+         [else
+          (raise-syntax-error 'квадратные-скобки
                                    "У объекта ~a нет доступа к полям через квадратные скобки"
                                    объект)])]
     [(_ а б) #'(let () (set! а б) а)]))
@@ -76,6 +88,7 @@
 (синоним or ||)
 (синоним and &&)
 (синоним if ?)
+(синоним struct структура)
 ;; НАДО: так нельзя, надо определять новые функции, иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
 (синоним open-output-string открыть-запись-в-строку)
 (синоним get-output-string получить-записанную-строку)
@@ -131,15 +144,21 @@
 (define (// x y) (quotient x y))
 (define (% x y) (remainder x y))
 (define (подстрока str start [end (string-length str)]) (substring str start end))
-(define (пара параметр1 параметр2) (cons параметр1 параметр2))
 (define (пара? т) (rkt:cons? т))
 (define (список? т) (list? т))
 (define (массив? т) (vector? т))
 (define (длина-массива т) (vector-length т))
+(define (длина-строки т) (string-length т))
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (читая-файл имя обработка) (call-with-input-file имя обработка))
+(define (записывая-файл имя обработка) (call-with-output-file имя обработка))
 (define (в-строках порт) (in-lines порт))
 (define (в-соответствии соответствие) (in-hash соответствие))
+(define (развернуть список) (reverse список))
+(define (обрезать строка) (string-trim строка))
+(define (объединить-строки список [разделитель " "]) (string-join список разделитель))
+(define (не x) (not x))
+(define (есть-файл? ф) (file-exists? ф))
 
 (define (создать-соответствие
          #:глубокое-сравнение (глубокое #f)
@@ -228,6 +247,7 @@
     [(list? объект) (list-ref объект поле)]
     [(vector? объект) (vector-ref объект поле)]
     [(hash? объект) (hash-ref объект поле #f)]
+    [(string? объект) (string-ref объект поле)]
     [else (raise-syntax-error 'квадратные-скобки
                               "У объекта ~a нет доступа к полям через квадратные скобки"
                               объект)]))
