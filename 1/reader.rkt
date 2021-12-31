@@ -198,7 +198,7 @@
 (оператор! '|| 3)
 (оператор! '&& 3)
 (оператор! '? 2)
-(оператор! ':= 1)
+(оператор! ':= 1 'право)
 (оператор! '= 0)
 
 (define (оператор? stx)
@@ -228,15 +228,15 @@
     [(pair? l)
      (define операторы
        (let собрать-операторы ([список (cdr l)] [результат null])
-         (cond
-           [(or (null? список)
-                (not (pair? список))
-                (null? (cdr список))
-                (not (pair? (cdr список)))) результат]
-           [else (собрать-операторы (cdr список)
-                                    (if (оператор? (car список))
-                                        (cons (car список) результат)
-                                        результат))])))
+         (if (or (null? список)
+                 (not (pair? список))
+                 (null? (cdr список))
+                 (not (pair? (cdr список))))
+             результат
+             (собрать-операторы (cdr список)
+                                (if (оператор? (car список))
+                                    (cons (car список) результат)
+                                    результат)))))
      (cond
        [(null? операторы) stx]
        [else
@@ -267,49 +267,32 @@
         (define (list1? x) (and
                             (not (null? x))
                             (null? (cdr x))))
-        (if (eq? направление 'право)
-            (let разделить-по-оператору ([список (cdr l)] [лево (list (car l))]
-                                                          [оператор #f] [право null])
-              (cond
-                [(or (null? список)
-                     (not (pair? список))
-                     (null? (cdr список))
-                     (not (pair? (cdr список))))
-                 (define право* (append (reverse право) список))
-                 (map clean
-                      (append (list оператор)
-                              (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                              (if (list1? право*) право* (list (datum->syntax stx право*)))))]
-                [else
-                 (define элем (car список))
-                 (define найден? (and (оператор? элем)
-                                      (= (car (приоритет-оператора элем)) приоритет)))
-                 (разделить-по-оператору (cdr список)
-                                         (cond
-                                           [найден? (append право лево)]
-                                           [оператор лево]
-                                           [else (cons элем лево)])
-                                         (if найден? элем оператор)
-                                         (cond
-                                           [найден? null]
-                                           [оператор (cons элем право)]
-                                           [else null]))]))
-            (let разделить-по-оператору ([список (cdr l)] [лево (list (car l))])
-              (define элем (car список))              
-              (cond
-                [(and (оператор? элем)
-                      (= (car (приоритет-оператора элем)) приоритет))
-                 (define право (cdr список))
-                 (map clean
-                      (append (list (очистить-оператор элем))
-                              (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                              (if (or (list1? право) (eq? '= (syntax-e элем)))
-                                  право
-                                  (list (datum->syntax stx право)))))]
-                [else
-                 (define элем (car список))
-                 (разделить-по-оператору (cdr список)
-                                         (cons элем лево))])))])]
+        (define (разделить-по-оператору список лево)
+          (define элем (car список))
+          (cond
+            [(and (оператор? элем)
+                  (= (car (приоритет-оператора элем)) приоритет))
+             (define право (cdr список))
+             (values (очистить-оператор элем) лево право)]
+            [else
+             (define элем (car список))
+             (разделить-по-оператору (cdr список)
+                                     (cons элем лево))]))
+        (define-values (оператор лево право)
+          (cond
+            [(eq? направление 'право)
+             (разделить-по-оператору (cdr l) (list (car l)))]
+            [else
+             (define rev-l (reverse l))
+             (define-values (оператор лево право)
+               (разделить-по-оператору (cdr rev-l) (list (car rev-l))))
+             (values оператор право лево)]))
+        (map clean
+             (append (list оператор)
+                     (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
+                     (if (or (list1? право) (eq? '= (syntax-e оператор)) (eq? '? (syntax-e оператор)))
+                         право
+                         (list (datum->syntax stx право)))))])]
     [else stx]))
 
 (define (обработать-если x)
@@ -445,7 +428,7 @@
      (parse-dot (read-item) (read-list end) ln col pos)]
     [(rt-char=? char #\$)
      (define first (read-item))
-     (define rest (syntax->datum (clean-list (datum->syntax #f (read-list end)))))
+     (define rest (syntax-e (clean-list (datum->syntax #f (read-list end)))))
      (match rest
        [(list a b c ...) (list rest)]
        [_ rest])]
