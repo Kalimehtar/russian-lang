@@ -290,21 +290,32 @@
         (map clean
              (append (list оператор)
                      (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                     (if (or (list1? право) (eq? '= (syntax-e оператор)) (eq? '? (syntax-e оператор)))
+                     (if (or (list1? право)
+                             (and (eq? '= (syntax-e оператор)) (описание-функции лево))
+                             (eq? '? (syntax-e оператор)))
                          право
                          (list (datum->syntax stx право)))))])]
     [else stx]))
+
+(define (описание-функции список)
+  (cond
+    [(syntax? список) (описание-функции (syntax-e список))]
+    [(not (cons? список)) #f]
+    [(null? (cdr список))
+     (описание-функции (car список))]
+    [else
+     (not (memq (car список) '(значения шаблон шаблоны)))]))
 
 (define (обработать-если x)
   (syntax-parse x
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
      #`(#,sym-if a (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) (#,sym-begin c ...))]
+     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...)))) (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a (~datum тогда) b ...)
      #`(#,sym-if a (#,sym-begin b ...) #,sym-void)]
     [(если a ... (~datum тогда) b ...)
-     #`(#,sym-if #,(datum->syntax x (syntax-e (clean #'(a ...)))) (#,sym-begin b ...) #,sym-void)]
+     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...)))) (#,sym-begin b ...) #,sym-void)]
     [_ x]))
 
 (define (clean x)
@@ -317,7 +328,11 @@
             (~or (~datum quote)
                  (~datum unquote)
                  (~datum quasiquote)
-                 (~datum unquote-splicing)))
+                 (~datum unquote-splicing)
+                 (~datum цитата)
+                 (~datum квазицитата)
+                 (~datum не-цитируя)
+                 (~datum не-цитируя-список)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
     [_ y]))
@@ -538,4 +553,4 @@
         '(? (> 2 3) (блок (:= a 3)) (блок (:= a 2))))
   (test "..." '...)
   (test "f(x) =\n  1 + 2\n  2 - 3" '(= (f x) (+ 1 2) (- 2 3)))
-  (test "тест = проверка 5" '(= тест проверка 5)))
+  (test "тест = проверка 5" '(= тест (проверка 5))))
