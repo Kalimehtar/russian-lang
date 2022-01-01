@@ -226,22 +226,29 @@
     [(_) #'(void)]))
 
 
+(define-for-syntax (замена-ключевого-слова stx)
+  (define замена
+    (case (syntax-e stx)
+      [(#:когда) '#:when]
+      [(#:когда-не) '#:unless]
+      [(#:прервать)  '#:break]
+      [(#:последняя) '#:final]
+      [else #f]))
+  замена)
+
 (define-for-syntax (преобразовать-слово-цикла stx)
   (define l (syntax-e stx))
   (cond
     [(list? l)
-     (define stx-head (syntax-e (car l)))
-     (define замена
-       (case (syntax->datum stx-head)
-         [('#:когда) '#:when]
-         [('#:когда-не) '#:unless]
-         [('#:прервать)  '#:break]
-         [('#:последняя) '#:final]
-         [else #f]))
+     (define замена (замена-ключевого-слова (car l)))
      (if замена
-         (datum->syntax stx (cons (datum->syntax stx-head замена) (cdr l)))
+         (datum->syntax stx (cons (datum->syntax (car l) замена) (cdr l)))
          stx)]
-    [else stx]))
+    [else
+     (define замена (замена-ключевого-слова stx))
+     (if замена
+         (datum->syntax stx замена)
+         stx)]))
 
 (define-for-syntax (преобразовать-слова-цикла stx)
   (define l (syntax-e stx))
@@ -265,10 +272,10 @@
 
 (определение-синтаксиса (пусть синтаксис)
   (варианты-синтаксиса синтаксис ()
-    [(_ ((А Б) . В) . Г) #'(let ((А Б) . В) Г)]
-    [(_ (А Б) . Г) #'(let ((А Б)) Г)]
-    [(_ ИМЯ ((А Б) . В) . Г) #'(let ИМЯ ((А Б) . В) Г)]
-    [(_ ИМЯ (А Б) . Г) #'(let ИМЯ ((А Б)) Г)]
+    [(_ ((А Б) . В) . Г) #'(let ((А Б) . В) . Г)]
+    [(_ (А Б) . Г) #'(let ((А Б)) . Г)]
+    [(_ ИМЯ ((А Б) . В) . Г) #'(let ИМЯ ((А Б) . В) . Г)]
+    [(_ ИМЯ (А Б) . Г) #'(let ИМЯ ((А Б)) . Г)]
     [(_ . А) #'(let . А)]))
 
 (define истина #t)
