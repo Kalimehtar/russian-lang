@@ -3,7 +3,7 @@
 (require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top цитата квазицитата)
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top)
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 (define-match-expander массив
@@ -79,7 +79,23 @@
 (синоним quasiquote квазицитата)
 (синоним unquote не-цитируя)
 (синоним unquote-splicing не-цитируя-список)
-(синоним require использовать)
+
+(define-syntax (используется stx)
+  (syntax-case stx ()
+    [(_ x)
+     (and (identifier? #'x) (not (module-path? (syntax-e #'x))))
+     (syntax-local-introduce
+      (quasisyntax/loc stx
+        (require (file
+                  #,(datum->syntax #'x
+                                   (path->string
+                                    (collection-file-path
+                                     (format "~a.1" (syntax-e #'x)) "1"
+                                     #:check-compiled? #t)))))))]
+    [(_ x) (syntax-local-introduce (syntax/loc stx (require x)))]
+    [(_ x ...) #'(begin (используется x) ...)]))
+(синоним prefix-in с-префиксом)
+
 (синоним provide предоставлять)
 (синоним begin блок)
 (синоним begin-for-syntax при-компиляции)
@@ -89,7 +105,8 @@
 (синоним and &&)
 (синоним if ?)
 (синоним struct структура)
-;; НАДО: так нельзя, надо определять новые функции, иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
+;; НАДО: так нельзя, надо определять новые функции,
+;;       иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
 (синоним open-output-string открыть-запись-в-строку)
 (синоним get-output-string получить-записанную-строку)
 (синоним write-string записать-строку)
@@ -99,7 +116,8 @@
    (define (заменить-по-словарю строка словарь)
       (if (пустой? словарь)
           строка
-          (заменить-по-словарю (заменить-в-строке строка (caar словарь) (cdar словарь)) (cdr словарь))))
+          (заменить-по-словарю (заменить-в-строке строка
+                                                  (caar словарь) (cdar словарь)) (cdr словарь))))
     (заменить-по-словарю строка
                   '(("#t" . "истина")
                     ("#f" . "ложь")
