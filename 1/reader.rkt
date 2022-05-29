@@ -8,7 +8,7 @@
                         [port (current-input-port)])
   (with-handlers ([(λ (e) #t) (λ (e) (raise (translate e)))])
     (parameterize ([current-source-name source-name]
-                   [current-input-port port])
+                   [current-input-port port])      
       (разобрать-список-с-одной-точкой (indent-read)))))
 
 (define (translate e)
@@ -108,6 +108,9 @@
   (cond    
     [(eof-object? c) (read-char) c]
     [(comment? c) (consume-to-eol!) (indent-read)]
+    [(block-comment? c)
+     (consume-block-comment!)
+     (indent-read)]
     [(rt-char=? c #\newline) (read-char) (indent-read)]
     [(> (string-length indentation) 0)
      (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -311,7 +314,8 @@
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
      #`(#,sym-if a (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...)))) (#,sym-begin b ...) (#,sym-begin c ...))]
+     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...))))
+                 (#,sym-begin b ...) (#,sym-begin c ...))]
     [(если a (~datum тогда) b ...)
      #`(#,sym-if a (#,sym-begin b ...) #,sym-void)]
     [(если a ... (~datum тогда) b ...)
@@ -540,9 +544,11 @@
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
   (test "цикл/первый\n ;\n  p points\n  #:когда $ tau < p[0]\n bonus := bonus + p[1]"
-        '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0))) (:= bonus (+ bonus (квадратные-скобки p 1)))))
+        '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
+                      (:= bonus (+ bonus (квадратные-скобки p 1)))))
   (test "цикл/первый (p points; #:когда $ tau < p[0])\n bonus := bonus + p[2]"
-        '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0))) (:= bonus (+ bonus (квадратные-скобки p 2)))))
+        '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
+                      (:= bonus (+ bonus (квадратные-скобки p 2)))))
   (test "new(point%){move-x 5; move-y 7; move-x 12}"
         '(отправить+ (new point%) (move-x 5) (move-y 7) (move-x 12)))
   (test "new(point%){move-x 5}"
@@ -553,4 +559,5 @@
         '(? (> 2 3) (блок (:= a 3)) (блок (:= a 2))))
   (test "..." '...)
   (test "f(x) =\n  1 + 2\n  2 - 3" '(= (f x) (+ 1 2) (- 2 3)))
-  (test "тест = проверка 5" '(= тест (проверка 5))))
+  (test "тест = проверка 5" '(= тест (проверка 5)))
+  (test "2 3 #| sadasd  sad as\n 4 |# 5"  '(2 3 5)))

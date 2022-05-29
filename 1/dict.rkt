@@ -1,22 +1,13 @@
 #lang racket/base
-(require racket/match racket/vector racket/string racket/class)
-(require (for-syntax racket/base racket/match 1/run-fast) (prefix-in rkt: racket))
-(provide (rename-out [module-begin #%module-begin])
-         (except-out (all-defined-out) module-begin синоним русифицировать-вывод old-printer printer)
+(require racket/match racket/vector racket/string racket/class racket/list         
+         (for-syntax racket/base racket/match 1/run-fast))
+(provide (rename-out [module-begin #%module-begin]) file
+         (except-out (all-defined-out) module-begin русифицировать-вывод old-printer printer)
          #%top-interaction #%app #%datum + - / * < > <= >= => #%top)
+(provide (for-syntax #%app #%top #%datum выбор-синтаксиса разобрать-синтаксис
+                     синтаксис syntax λ функция ...))
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
-(define-match-expander массив
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ pat ...)
-       #'(vector pat ...)]
-      [(_ pat ... . rest-pat)
-       #'(app vector->list (list-rest pat ... rest-pat))]))
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ pat ...)
-       #'(vector pat ...)])))
 
 (define-match-expander список
   (λ (stx)
@@ -68,12 +59,41 @@
                                    объект)])]
     [(_ а б) #'(let () (set! а б) а)]))
 
-(define-syntax (синоним stx)
-  (syntax-case stx ()
-    [(_ старый новый)     
-     #'(define-syntax (новый stx)
-         (syntax-case stx ()
-           [(_ . a) #'(старый . a)]))]))
+(module syn racket
+  (require syntax/parse)
+  (provide выбор-синтаксиса разобрать-синтаксис синтаксис синоним квазисинтаксис функция)
+  (define-syntax (синоним stx)
+    (syntax-case stx ()
+      [(_ старый новый)     
+       #'(define-syntax (новый stx)
+           (syntax-case stx ()
+             [(_ . a) #'(старый . a)]))]))
+  (define (translate e)
+    (define dict
+      '(("bad syntax" . "ошибка синтаксиса")))
+    (define (replace-dict str dict)
+      (if (null? dict)
+          str
+          (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
+    (cond
+      [(exn:fail:syntax? e)
+       (exn:fail:syntax (replace-dict (exn-message e) dict)
+                        (exn-continuation-marks e)
+                        (exn:fail:syntax-exprs e))]
+      [else e]))
+  (define-syntax (выбор-синтаксиса stx)
+    (syntax-case stx ()
+      [(_ правила ...)
+       #'(with-handlers ([exn:fail:syntax? (λ (e) (raise (translate e)))])
+           (syntax-case правила ...))]))
+  (define-syntax (разобрать-синтаксис stx)
+    (syntax-case stx ()
+      [(_ правила ...)
+       #'(syntax-parse правила ...)]))
+  (синоним syntax синтаксис)
+  (синоним quasisyntax квазисинтаксис)
+  (синоним lambda функция))
+(require (for-syntax 'syn) 'syn)
 
 (синоним quote цитата)
 (синоним quasiquote квазицитата)
@@ -81,29 +101,66 @@
 (синоним unquote-splicing не-цитируя-список)
 
 (define-syntax (используется stx)
-  (syntax-case stx ()
+  (syntax-case stx (с-префиксом)
+    [(_ имя)
+     (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
+     (quasisyntax/loc stx
+       (require
+         #,(datum->syntax #'имя
+                          (list 'file (path->string
+                                       (collection-file-path
+                                        (format "~a.1" (syntax-e #'имя)) "1"
+                                        #:check-compiled? #t))))))]
+    [(_ (с-префиксом префикс имя))
+     (quasisyntax/loc stx
+       (require (prefix-in префикс имя)))]
+    [(_ x) (syntax/loc stx (require x))]
+    [(_ x ...) #'(begin (используется x) ...)]))
+
+(define-for-syntax (f x) 1)
+
+(define-syntax (используется-для-синтаксиса stx)
+  (syntax-case stx (с-префиксом)
     [(_ x)
      (and (identifier? #'x) (not (module-path? (syntax-e #'x))))
-     (syntax-local-introduce
-      (quasisyntax/loc stx
-        (require (file
-                  #,(datum->syntax #'x
-                                   (path->string
-                                    (collection-file-path
-                                     (format "~a.1" (syntax-e #'x)) "1"
-                                     #:check-compiled? #t)))))))]
-    [(_ x) (syntax-local-introduce (syntax/loc stx (require x)))]
+     (quasisyntax/loc stx
+       (require
+         (for-syntax
+          #,(datum->syntax #'x
+                           (list 'file (path->string
+                                        (collection-file-path
+                                         (format "~a.1" (syntax-e #'x)) "1"
+                                         #:check-compiled? #t)))))))]
+    [(_ (с-префиксом префикс имя))
+     (quasisyntax/loc stx
+       (require (for-syntax #,(datum->syntax #'x (list 'prefix-in #'префикс #'имя)))))]
+    [(_ x) (syntax/loc stx (require x))]
     [(_ x ...) #'(begin (используется x) ...)]))
-(синоним prefix-in с-префиксом)
 
-(синоним provide предоставлять)
+(define-syntax (предоставлять stx)
+  (syntax-case stx (всё-из)
+    [(_ (всё-из имя))
+     (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
+     (quasisyntax/loc stx
+       (require
+         (for-syntax
+          #,(datum->syntax #'имя
+                           (list 'file (path->string
+                                        (collection-file-path
+                                         (format "~a.1" (syntax-e #'имя)) "1"
+                                         #:check-compiled? #t)))))))]
+    [(_ (всё-из имя))
+     (syntax-local-introduce
+      (quasisyntax/loc stx (provide (all-from-out имя))))]
+    [(_ x) (syntax/loc stx (provide x))]
+    [(_ x ...) (syntax/loc stx (begin (предоставлять x) ...))]))
+
 (синоним begin блок)
 (синоним begin-for-syntax при-компиляции)
 (синоним define-syntax определение-синтаксиса)
 (синоним define-syntax-rule определение-синтаксисического-правила)
 (синоним or ||)
 (синоним and &&)
-(синоним if ?)
 (синоним struct структура)
 ;; НАДО: так нельзя, надо определять новые функции,
 ;;       иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
@@ -152,7 +209,6 @@
 
 (синоним read прочитать)
 (синоним read-line прочитать-строку)
-(синоним lambda функция)
 (синоним when когда)
 (define (ошибка . т) (apply error т))
 (define == equal?)
@@ -162,14 +218,10 @@
 (define (// x y) (quotient x y))
 (define (% x y) (remainder x y))
 (define (подстрока str start [end (string-length str)]) (substring str start end))
-(define (пара? т) (rkt:cons? т))
+(define (пара? т) (cons? т))
 (define (список? т) (list? т))
-(define (массив? т) (vector? т))
-(define (длина-массива т) (vector-length т))
 (define (длина-строки т) (string-length т))
 (define (аргументы-командной-строки) (current-command-line-arguments))
-(define (читая-файл имя обработка) (call-with-input-file имя обработка))
-(define (записывая-файл имя обработка) (call-with-output-file имя обработка))
 (define (в-строках порт) (in-lines порт))
 (define (в-соответствии соответствие) (in-hash соответствие))
 (define (развернуть список) (reverse список))
@@ -203,35 +255,8 @@
      [(string? коллекция) (apply string-append коллекция коллекции)]
      [(vector? коллекция) (apply vector-append коллекция коллекции)]))
 
-(module syn racket
-  (require syntax/parse)
-  (provide варианты-синтаксиса разобрать-синтаксис)  
-  (define (translate e)
-    (define dict
-      '(("bad syntax" . "ошибка синтаксиса")))
-    (define (replace-dict str dict)
-      (if (null? dict)
-          str
-          (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
-    (cond
-      [(exn:fail:syntax? e)
-       (exn:fail:syntax (replace-dict (exn-message e) dict)
-                        (exn-continuation-marks e)
-                        (exn:fail:syntax-exprs e))]
-      [else e]))
-  (define-syntax (варианты-синтаксиса stx)
-    (syntax-case stx ()
-      [(_ правила ...)
-       #'(with-handlers ([exn:fail:syntax? (λ (e) (raise (translate e)))])
-           (syntax-case правила ...))]))
-  (define-syntax (разобрать-синтаксис stx)
-    (syntax-case stx ()
-      [(_ правила ...)
-       #'(syntax-parse правила ...)])))
-(require (for-syntax 'syn))
-
 (определение-синтаксиса (условия stx)
-  (варианты-синтаксиса stx (=> иначе)
+  (выбор-синтаксиса stx (=> иначе)
     [(_ (=> условие функция) остаток ...)
      #'(let ([t условие])
          (if t (функция t) (условия остаток ...)))]
@@ -242,7 +267,6 @@
            (begin действия ...)
            (условия остаток ...))]
     [(_) #'(void)]))
-
 
 (define-for-syntax (замена-ключевого-слова stx)
   (define замена
@@ -276,10 +300,10 @@
     [else stx]))
 
 (определение-синтаксиса (определение-синтаксиса-цикла синтаксис)
-  (варианты-синтаксиса синтаксис ()
+  (выбор-синтаксиса синтаксис ()
     [(_ русский английский)
      #'(определение-синтаксиса (русский синтаксис)
-         (варианты-синтаксиса синтаксис ()
+         (выбор-синтаксиса синтаксис ()
            [(_ ((А Б) . В) . Г) #`(английский ((А Б) . #,(преобразовать-слова-цикла #'В)) . Г)]
            [(_ (А Б) . Г) #'(английский ((А Б)) . Г)]
            [(_ . А) #'(английский . А)]))]))
@@ -289,7 +313,7 @@
 (определение-синтаксиса-цикла цикл/список for/list)
 
 (определение-синтаксиса (пусть синтаксис)
-  (варианты-синтаксиса синтаксис ()
+  (выбор-синтаксиса синтаксис ()
     [(_ ((А Б) . В) . Г) #'(let ((А Б) . В) . Г)]
     [(_ (А Б) . Г) #'(let ((А Б)) . Г)]
     [(_ ИМЯ ((А Б) . В) . Г) #'(let ИМЯ ((А Б) . В) . Г)]
@@ -312,13 +336,29 @@
 (define-syntax (надо-быстро stx)
   1)
 
+(define-for-syntax (add-headers body)
+  (define step1 '(используется базовая))
+  (define l (syntax->list body))
+  (datum->syntax body (if (null? l)
+                          (list (datum->syntax body step1))
+                          (cons (datum->syntax (car l) step1) l))))
+
 (define-syntax (module-begin stx)
-  (syntax-case stx ()
-    [(_ body ...)
+  (syntax-case stx (системная)
+    [(_ системная body ...)
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
         (global-port-print-handler printer)
         (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
-        (begin-for-syntax (end))))]))
+        (begin-for-syntax (end))))]
+    [(_ body ...)
+     (with-syntax ([(new-body ...) (add-headers #'(body ...))])
+       (quasisyntax/loc stx
+         (#%module-begin
+          (require (for-syntax 1/run-fast))
+          (global-port-print-handler printer)
+          (begin-for-syntax (start '#,(syntax-source stx)))        
+          new-body ...
+          (begin-for-syntax (end)))))]))
