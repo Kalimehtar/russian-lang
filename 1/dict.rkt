@@ -142,8 +142,8 @@
     [(_ (всё-из имя))
      (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
      (quasisyntax/loc stx
-       (require
-         (for-syntax
+       (provide
+         (all-from-out
           #,(datum->syntax #'имя
                            (list 'file (path->string
                                         (collection-file-path
