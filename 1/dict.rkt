@@ -3,7 +3,7 @@
          (for-syntax racket/base racket/match 1/run-fast))
 (provide (rename-out [module-begin #%module-begin]) file
          (except-out (all-defined-out) module-begin русифицировать-вывод old-printer printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top)
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top функция)
 (provide (for-syntax #%app #%top #%datum выбор-синтаксиса разобрать-синтаксис
                      синтаксис syntax λ функция ...))
 
