@@ -15,5 +15,7 @@ mt:define-match-expander массив
       (_ образец ...)
          #'(rkt:vector образец ...)
 
-массив? м = rkt:vector? м
-длина-массива м = rkt:vector-length м
+массив? м =
+  rkt:vector? м
+длина-массива м =
+  rkt:vector-length м
