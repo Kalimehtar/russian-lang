@@ -179,7 +179,8 @@
 
 (define sym-= (datum->syntax #f '=))
 (define sym-if (datum->syntax #f '?))
-(define sym-void (datum->syntax #f 'пусто))
+(define sym-cond (datum->syntax #f 'если))
+(define sym-else (datum->syntax #f 'иначе))
 (define sym-begin (datum->syntax #f 'блок))
 
 (define приоритеты (make-hasheq))
@@ -310,17 +311,20 @@
      (not (memq (car список) '(значения шаблон шаблоны)))]))
 
 (define (обработать-если x)
-  (syntax-parse x
-    [(если a (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-if a (#,sym-begin b ...) (#,sym-begin c ...))]
-    [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...))))
-                 (#,sym-begin b ...) (#,sym-begin c ...))]
-    [(если a (~datum тогда) b ...)
-     #`(#,sym-if a (#,sym-begin b ...) #,sym-void)]
-    [(если a ... (~datum тогда) b ...)
-     #`(#,sym-if #,(clean (datum->syntax x (syntax-e #'(a ...)))) (#,sym-begin b ...) #,sym-void)]
-    [_ x]))
+  (datum->syntax
+   x
+   (syntax-e              
+    (syntax-parse x
+      [(если a (~datum тогда) b ... (~datum иначе) c ...)
+       #`(#,sym-cond (a b ...) (#,sym-else c ...))]
+      [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
+       #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
+                     (#,sym-else c ...))]
+      [(если a (~datum тогда) b ...)
+       #`(#,sym-cond (a b ...))]
+      [(если a ... (~datum тогда) b ...)
+       #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
+      [_ x]))))
 
 (define (clean x)
   (define y (datum->syntax x (обработать-операторы (обработать-если x))))
@@ -554,9 +558,9 @@
   (test "new(point%){move-x 5}"
         '(отправить (new point%) move-x 5))
   (test "если 2 > 3 тогда 3 иначе 2"
-        '(? (> 2 3) (блок 3) (блок 2)))
+        '(если ((> 2 3) 3) (иначе 2)))
   (test "если 2 > 3 тогда\n  a := 3\n  иначе\n  a := 2"
-        '(? (> 2 3) (блок (:= a 3)) (блок (:= a 2))))
+        '(если ((> 2 3) (:= a 3)) (иначе (:= a 2))))
   (test "..." '...)
   (test "f(x) =\n  1 + 2\n  2 - 3" '(= (f x) (+ 1 2) (- 2 3)))
   (test "тест = проверка 5" '(= тест (проверка 5)))
