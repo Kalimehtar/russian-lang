@@ -177,11 +177,8 @@
       [(eq? (syntax-e (car l)) '|;|) (loop (cons c r) null (cdr l))]
       [else (loop r (append c (list (car l))) (cdr l))])))
 
-(define sym-= (datum->syntax #f '=))
-(define sym-if (datum->syntax #f '?))
 (define sym-cond (datum->syntax #f 'если))
 (define sym-else (datum->syntax #f 'иначе))
-(define sym-begin (datum->syntax #f 'блок))
 
 (define приоритеты (make-hasheq))
 (define (оператор! оп приоритет [ассоциативность 'лево])
@@ -202,6 +199,7 @@
 (оператор! '|| 3)
 (оператор! '&& 3)
 (оператор! '? 2)
+(оператор! ': 2 'право)
 (оператор! ':= 1 'право)
 (оператор! '= 0)
 
@@ -268,38 +266,44 @@
 в выражении для приоритета ~a и отсутствующей ассоциативности несколько операторов: ~a"
                                                               приоритет отобранные)
                                 stx (car отобранные))))
-        (define (list1? x) (and
-                            (not (null? x))
-                            (null? (cdr x))))
-        (define (разделить-по-оператору список лево)
-          (define элем (car список))
-          (cond
-            [(and (оператор? элем)
-                  (= (car (приоритет-оператора элем)) приоритет))
-             (define право (cdr список))
-             (values (очистить-оператор элем) лево право)]
-            [else
-             (define элем (car список))
-             (разделить-по-оператору (cdr список)
-                                     (cons элем лево))]))
         (define-values (оператор лево право)
           (cond
             [(eq? направление 'право)
-             (разделить-по-оператору (cdr l) (list (car l)))]
+             (разделить-по-оператору (cdr l) (list (car l)) приоритет)]
             [else
              (define rev-l (reverse l))
              (define-values (оператор лево право)
-               (разделить-по-оператору (cdr rev-l) (list (car rev-l))))
+               (разделить-по-оператору (cdr rev-l) (list (car rev-l)) приоритет))
              (values оператор право лево)]))
-        (map clean
-             (append (list оператор)
-                     (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                     (if (or (list1? право)
-                             (and (eq? '= (syntax-e оператор)) (описание-функции лево))
-                             (eq? '? (syntax-e оператор)))
-                         право
-                         (list (datum->syntax stx право)))))])]
+        (datum->syntax
+         stx
+         (map clean
+              (append (list оператор)
+                      (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
+                      (if (or (list1? право)
+                              (and (eq? '= (syntax-e оператор)) (описание-функции лево))
+                              (eq? '? (syntax-e оператор)))
+                          право
+                          (list (datum->syntax stx право))))))])]
     [else stx]))
+
+(define (разделить-по-оператору список лево приоритет)
+  (define элем (car список))
+  (cond
+    [(and (оператор? элем)
+          (= (car (приоритет-оператора элем)) приоритет))
+     (define право (cdr список))
+     (values (очистить-оператор элем) лево право)]
+    [else
+     (define элем (car список))
+     (разделить-по-оператору (cdr список)
+                             (cons элем лево)
+                             приоритет)]))
+
+(define (list1? x)
+  (and
+   (not (null? x))
+   (null? (cdr x))))
 
 (define (описание-функции список)
   (cond
@@ -311,23 +315,20 @@
      (not (memq (car список) '(значения шаблон шаблоны)))]))
 
 (define (обработать-если x)
-  (datum->syntax
-   x
-   (syntax-e              
-    (syntax-parse x
-      [(если a (~datum тогда) b ... (~datum иначе) c ...)
-       #`(#,sym-cond (a b ...) (#,sym-else c ...))]
-      [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-       #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
-                     (#,sym-else c ...))]
-      [(если a (~datum тогда) b ...)
-       #`(#,sym-cond (a b ...))]
-      [(если a ... (~datum тогда) b ...)
-       #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
-      [_ x]))))
+  (syntax-parse x
+    [(если a (~datum тогда) b ... (~datum иначе) c ...)
+     #`(#,sym-cond (a b ...) (#,sym-else c ...))]
+    [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
+     #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
+                   (#,sym-else c ...))]
+    [(если a (~datum тогда) b ...)
+     #`(#,sym-cond (a b ...))]
+    [(если a ... (~datum тогда) b ...)
+     #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
+    [_ x]))
 
 (define (clean x)
-  (define y (datum->syntax x (обработать-операторы (обработать-если x))))
+  (define y (обработать-операторы (обработать-если x)))
   (syntax-parse y
     [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
     [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]

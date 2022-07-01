@@ -9,28 +9,6 @@
 
 ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
 
-(define-match-expander список
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ pat ...)
-       #'(list pat ...)]
-      [(_ pat ... . rest-pat)
-       #'(list-rest pat ... rest-pat)]))
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ pat ...)
-       #'(list pat ...)])))
-
-(define-match-expander пара
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ pat1 pat2)
-       #'(cons pat1 pat2)]))
-  (λ (stx)
-    (syntax-case stx ()
-      [(_ a b)
-       #'(cons a b)])))
-
 (define-syntax (= stx)
   (syntax-case stx (значения шаблон шаблоны)
     [(_ (значения . а) б) #'(define-values а б)]
@@ -218,8 +196,6 @@
 (define (// x y) (quotient x y))
 (define (% x y) (remainder x y))
 (define (подстрока str start [end (string-length str)]) (substring str start end))
-(define (пара? т) (cons? т))
-(define (список? т) (list? т))
 (define (длина-строки т) (string-length т))
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
