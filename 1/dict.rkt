@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/match racket/vector racket/string racket/class racket/list         
+(require racket/match racket/vector racket/string racket/class         
          (for-syntax racket/base racket/match 1/run-fast))
 (provide (rename-out [module-begin #%module-begin]) file
          (except-out (all-defined-out) module-begin русифицировать-вывод old-printer printer)
