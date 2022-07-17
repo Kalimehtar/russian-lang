@@ -120,7 +120,7 @@
     [else
      (match-define (cons level stx) (read-block-clean ""))
      (cond
-       [(dot? stx)
+       [(and (syntax? stx) (eq? (syntax-e stx) '|.|))
         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
        [(operator? stx) => (λ (parsed)                             
                              (apply оператор! (syntax->datum parsed))
@@ -155,25 +155,21 @@
                                          ln col pos (- end-pos pos))))])))
 
 (define (split-sc x)
-  (define r null)
-  (define c null)
   (let loop ([r null] [c null] [l (syntax-e x)])
     (cond
       [(null? l)
        (datum->syntax x
                       (map (λ (elem)
-                             (define elem* (match elem
-                                             [(list x) x]
-                                             [_ elem]))
-                             (clean (datum->syntax x elem*)))
+                             (clean (список-или-элемент (datum->syntax x elem))))
                            (filter (λ (x) (not (null? x)))
                                    (reverse (cons c r)))))]
-      [(not (pair? l)) (loop r (append c l) null)]
       [(eq? (syntax-e (car l)) '|;|) (loop (cons c r) null (cdr l))]
       [else (loop r (append c (list (car l))) (cdr l))])))
 
-(define sym-cond (datum->syntax #f 'если))
-(define sym-else (datum->syntax #f 'иначе))
+(define (список-или-элемент elem)
+  (syntax-parse elem
+    [(x) #'x]
+    [_ elem]))
 
 (define приоритеты (make-hasheq))
 (define (оператор! оп приоритет [ассоциативность 'лево])
@@ -198,11 +194,13 @@
 (оператор! ':= 1 'право)
 (оператор! '= 0)
 
+(define шаблон-оператора #rx"^[!#$%&⋆+./<=>?@^~:*-]*$")
+
 (define (оператор? stx)
   (define s (syntax-e stx))
   (define (имя-оператора? имя)
     (and
-     (or (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
+     (or (regexp-match шаблон-оператора имя)
          (regexp-match #rx"^\\^.*\\^$" имя))
      (not (string=? имя "..."))
      (not (string=? имя "."))))
@@ -211,7 +209,7 @@
 
 (define (очистить-оператор stx)
   (define имя (symbol->string (syntax-e stx)))
-  (if (regexp-match #rx"^[!#$%&⋆+./<=>?@^~:*-]*$" имя)
+  (if (regexp-match шаблон-оператора имя)
       stx
       (datum->syntax stx
                      (string->symbol (substring имя 1 (sub1 (string-length имя)))))))
@@ -312,22 +310,18 @@
 (define (обработать-если x)
   (syntax-parse x
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-cond (a b ...) (#,sym-else c ...))]
+     #'(если (a b ...) (иначе c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
-                   (#,sym-else c ...))]
+     #`(если (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
+             (иначе c ...))]
     [(если a (~datum тогда) b ...)
-     #`(#,sym-cond (a b ...))]
+     #'(если (a b ...))]
     [(если a ... (~datum тогда) b ...)
-     #`(#,sym-cond (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
+     #`(если (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
     [_ x]))
 
-(define (clean x)
-  (define y (обработать-операторы (обработать-если x)))
-  (syntax-parse y
-    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
-    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
-    [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
+(define (учесть-цитирование x)
+  (syntax-parse x
     [((~and q
             (~or (~datum quote)
                  (~datum unquote)
@@ -339,6 +333,23 @@
                  (~datum не-цитируя-список)))
       b c d ...)
      #`(q #,(clean #'(b c d ...)))]
+    [_ x]))
+
+(define (обработать-$ x)
+  (syntax-parse x
+    [(a ... (~datum $) b) #'(a ... b)]
+    [(a ... (~datum $) b ...) #`(a ... #,(clean #'(b ...)))]
+    [_ x]))
+
+(define (clean x)
+  (define y (обработать-операторы
+             (обработать-$
+              (обработать-если
+               (учесть-цитирование x)))))
+  (syntax-parse y
+    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
+    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
+    [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [_ y]))
 
 (define (clean-list список)
@@ -393,16 +404,7 @@
      (define first (read-item))
      (match-define (cons new-level rest) (read-block level))
      (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
-     (cons new-level
-           (cond
-             [(eof-object? first) first]
-             [($? first)
-              (define rest1 (syntax-e (clean-list rest)))
-              (match rest1                
-                [(list a b c ...) (list rest1)]
-                [_ rest1])]
-             [else
-              (cons first rest)]))]))
+     (cons new-level (if (eof-object? first) first (cons first rest)))]))
 
 (define (readquote qt)
   (define char (peek-char-or-special))
@@ -410,9 +412,7 @@
   (define stx (if (char-whitespace? char) qt (list qt (read-item))))
   (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
   (datum->syntax #f stx
-                 (vector (current-source-name)
-                         ln col pos (- end-pos pos))
-                 (read-syntax #f (open-input-string "orig"))))
+                 (vector (current-source-name) ln col pos (- end-pos pos))))
 
 (define (read-list end)
   (прочитать-незначащее!)
@@ -424,14 +424,11 @@
     [(rt-char=? char end)
      (read-char)
      null]
-    [(rt-char=? char #\$)
-     (define first (read-item))
-     (define rest (syntax-e (clean-list (read-list end))))
-     (match rest
-       [(list a b c ...) (list rest)]
-       [_ rest])]
     [else
      (cons (read-item) (read-list end))]))
+
+(define (прочитать-список последний-символ)
+  (clean-list (read-list последний-символ)))
 
 (define (read-item)
   (define char (peek-char-or-special))
@@ -467,47 +464,43 @@
            (cond
              [(rt-char=? char #\()
               (read-char)
-              (clean-list (read-list #\)))]
+              (прочитать-список #\))]
              [(rt-char=? char #\[)
               (read-char)
-              (clean-list (read-list #\]))]
+              (прочитать-список #\])]
              [(rt-char=? char #\{)
               (read-char)
-              (clean-list (read-list #\}))]
+              (прочитать-список #\})]
              [else (read-syntax (current-source-name))]))
          (let loop ([res res])
            (cond
              [(rt-char=? (peek-char-or-special) #\()
               (read-char)
-              (loop (datum->syntax #f (cons res (clean-list (read-list #\))))))]
+              (loop (datum->syntax #f (cons res (прочитать-список #\)))))]
              [(rt-char=? (peek-char-or-special) #\[)
               (read-char)
-              (loop (datum->syntax #f (cons 'квадратные-скобки (cons res (read-list #\])))))]
+              (loop (datum->syntax
+                     #f
+                     `(квадратные-скобки ,res
+                                         ,(список-или-элемент (прочитать-список #\])))))]
              [(rt-char=? (peek-char-or-special) #\{)
               (read-char)
-              (define l (clean-list (read-list #\})))
+              (define l (прочитать-список #\}))
               (loop (datum->syntax #f
                                    (cons (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить)
                                          (cons res l))))]
              [else (expand-booleans res)]))]))
 
-(define (parse-block-dot stx [next-blocks null])
-  (cond
-    [(null? stx) null]
-    [(dot? stx) next-blocks]
-    [else (cons stx next-blocks)]))
-
 (define (read-blocks level)
   ;; indent -> (listof syntax?)
   (match-define (cons next-level stx) (read-block-clean level))
-  (cond [(equal? next-level level)
-         (match-define (cons next-next-level next-blocks) (read-blocks level))
-         (cons next-next-level (parse-block-dot stx next-blocks))]
-        [else
-         (cons next-level (parse-block-dot stx null))]))
-
-(define (dot? x) (and (syntax? x) (eq? (syntax-e x) '|.|)))
-(define ($? x) (and (syntax? x) (eq? (syntax-e x) '$)))
+  (cond
+    [(null? stx) (cons next-level null)]
+    [(equal? next-level level)
+     (match-define (cons next-next-level next-blocks) (read-blocks level))
+     (list* next-next-level stx next-blocks)]
+    [else
+     (cons next-level (list stx))]))
 
 (module+ test
   (require rackunit)
@@ -531,6 +524,9 @@
   (test "f(a; b c; d)" '(f a (b c) d))
   (test "цикл/первый\n ;\n  p points\n  #:когда $ tau < p[0]\n bonus := bonus + p[1]"
         '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
+                      (:= bonus (+ bonus (квадратные-скобки p 1)))))
+  (test "цикл/первый\n $\n  p points\n bonus := bonus + p[1]"
+        '(цикл/первый ((p points))
                       (:= bonus (+ bonus (квадратные-скобки p 1)))))
   (test "цикл/первый (p points; #:когда $ tau < p[0])\n bonus := bonus + p[2]"
         '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
