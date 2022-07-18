@@ -59,10 +59,10 @@
   (define c (peek-char-or-special))
   (cond [(eof-object? c) ""]
         [(comment? c)
-         (consume-to-eol!)
+         (пропустить-до-конца-строки!)
          (прочитать-отступ!)]
         [(block-comment? c)
-         (consume-block-comment!)
+         (пропустить-блочный-комментарий!)
          (прочитать-отступ!)]
         [(eqv? c #\newline)
          (read-char)
@@ -77,36 +77,36 @@
   (and (> len1 len2)
        (string=? indentation2 (substring indentation1 0 len2))))
 
-(define (consume-to-eol!)
+(define (пропустить-до-конца-строки!)
   (define c (read-char-or-special))
   (unless (or (eof-object? c)
               (rt-char=? c #\newline))
-    (consume-to-eol!)))
+    (пропустить-до-конца-строки!)))
 
-(define (consume-block-comment!)
+(define (пропустить-блочный-комментарий!)
   (define (rec)
     (define c (peek-char-or-special))
     (unless (and (rt-char=? c #\|) (rt-char=? (peek-char-or-special (current-input-port) 1) #\#))
       (when (block-comment? c)
-        (consume-block-comment!))
+        (пропустить-блочный-комментарий!))
       (read-char-or-special)
       (rec)))
   (read-char) (read-char) (rec) (read-char) (read-char))
      
-(define (прочитать-незначащее! [без-переносов #f])
+(define (пропустить-незначащее! [без-переносов #f])
   (define c (peek-char-or-special))
   (cond
     [(and без-переносов (rt-char=? c #\newline))
      (void)]
     [(and (char? c) (char-whitespace? c))
      (read-char)
-     (прочитать-незначащее! без-переносов)]
+     (пропустить-незначащее! без-переносов)]
     [(comment? c)
-     (consume-to-eol!)
-     (прочитать-незначащее! без-переносов)]
+     (пропустить-до-конца-строки!)
+     (пропустить-незначащее! без-переносов)]
     [(block-comment? c)
-     (consume-block-comment!)
-     (прочитать-незначащее! без-переносов)]))
+     (пропустить-блочный-комментарий!)
+     (пропустить-незначащее! без-переносов)]))
 
 (define (indent-read)
   (define indentation (прочитать-отступ!))
@@ -154,17 +154,18 @@
                                  (vector (current-source-name)
                                          ln col pos (- end-pos pos))))])))
 
-(define (split-sc x)
+(define (разделить-по-точке-с-запятой x)
   (let loop ([r null] [c null] [l (syntax-e x)])
+    (define (cons-cr) (cons (reverse c) r))
     (cond
       [(null? l)
        (datum->syntax x
                       (map (λ (elem)
                              (clean (список-или-элемент (datum->syntax x elem))))
                            (filter (λ (x) (not (null? x)))
-                                   (reverse (cons c r)))))]
-      [(eq? (syntax-e (car l)) '|;|) (loop (cons c r) null (cdr l))]
-      [else (loop r (append c (list (car l))) (cdr l))])))
+                                   (reverse (cons-cr)))))]
+      [(eq? (syntax-e (car l)) '|;|) (loop (cons-cr) null (cdr l))]
+      [else (loop r (cons (car l) c) (cdr l))])))
 
 (define (список-или-элемент elem)
   (syntax-parse elem
@@ -338,7 +339,7 @@
 (define (обработать-$ x)
   (syntax-parse x
     [(a ... (~datum $) b) #'(a ... b)]
-    [(a ... (~datum $) b ...) #`(a ... #,(clean #'(b ...)))]
+    [(a ... (~datum $) b ...) (clean (datum->syntax x (syntax-e #`(a ... #,(clean #'(b ...))))))]
     [_ x]))
 
 (define (clean x)
@@ -354,9 +355,10 @@
 
 (define (clean-list список)
   (define x (datum->syntax #f список))
-  (syntax-parse x
-    [(a ... (~datum |;|) . b) (clean (split-sc x))]
-    [_ (clean x)]))
+  (clean
+   (syntax-parse x
+     [(a ... (~datum |;|) . b) (разделить-по-точке-с-запятой x)]
+     [_ x])))
 
 (define (разобрать-список-с-одной-точкой x)
   (syntax-parse x
@@ -369,7 +371,7 @@
 
 (define current-source-name (make-parameter #f))
 
-(define (expand-booleans x)
+(define (заменить-логические x)
   (cond
     [(syntax? x)
      (define sym (syntax-e x))
@@ -380,7 +382,7 @@
     [else x]))
 
 (define (read-block level)
-  (прочитать-незначащее! #t)
+  (пропустить-незначащее! #t)
   (define char (peek-char-or-special))
   (cond
     [(eof-object? char)
@@ -397,7 +399,7 @@
          (cons next-level null))]
     [(rt-char=? char #\;)
      (read-char)
-     (прочитать-незначащее!)
+     (пропустить-незначащее!)
      (cons level null)]
     [else
      (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -415,7 +417,7 @@
                  (vector (current-source-name) ln col pos (- end-pos pos))))
 
 (define (read-list end)
-  (прочитать-незначащее!)
+  (пропустить-незначащее!)
   (define char (peek-char-or-special))
   (define-values (ln col pos) (port-next-location (current-input-port)))
   (cond
@@ -473,23 +475,24 @@
               (прочитать-список #\})]
              [else (read-syntax (current-source-name))]))
          (let loop ([res res])
+           (define следующий-символ (peek-char-or-special))
            (cond
-             [(rt-char=? (peek-char-or-special) #\()
+             [(rt-char=? следующий-символ #\()
               (read-char)
               (loop (datum->syntax #f (cons res (прочитать-список #\)))))]
-             [(rt-char=? (peek-char-or-special) #\[)
+             [(rt-char=? следующий-символ #\[)
               (read-char)
               (loop (datum->syntax
                      #f
                      `(квадратные-скобки ,res
                                          ,(список-или-элемент (прочитать-список #\])))))]
-             [(rt-char=? (peek-char-or-special) #\{)
+             [(rt-char=? следующий-символ #\{)
               (read-char)
               (define l (прочитать-список #\}))
-              (loop (datum->syntax #f
-                                   (cons (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить)
-                                         (cons res l))))]
-             [else (expand-booleans res)]))]))
+              (loop (datum->syntax
+                     #f
+                     (list* (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить) res l)))]
+             [else (заменить-логические res)]))]))
 
 (define (read-blocks level)
   ;; indent -> (listof syntax?)
