@@ -1,5 +1,5 @@
 #lang racket
-(require syntax/readerr syntax/srcloc syntax/parse racket/list syntax/stx)
+(require syntax/readerr syntax/srcloc syntax/parse racket/list syntax/stx syntax/strip-context)
 (provide my-read my-read-syntax)
 
 (define (my-read [p (current-input-port)]) (syntax->datum (my-read-syntax #f p)))
@@ -9,7 +9,7 @@
   (with-handlers ([(λ (e) #t) перевести-ошибку])
     (parameterize ([current-source-name source-name]
                    [current-input-port port])      
-      (разобрать-список-с-одной-точкой (indent-read)))))
+      (strip-context (разобрать-список-с-одной-точкой (indent-read))))))
 
 (define (перевести-ошибку e)
   (define dict

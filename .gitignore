@@ -6,3 +6,7 @@
 1/manual-racket.js
 1/russian-lang.html
 1/scribble-common.js
+*.js
+*.rktd
+*.sxref
+*.html
