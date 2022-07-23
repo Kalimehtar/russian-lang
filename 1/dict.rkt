@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/match racket/vector racket/string racket/class         
          (for-syntax racket/base racket/match 1/run-fast))
-(provide (rename-out [module-begin #%module-begin]) file
+(provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin русифицировать-вывод old-printer printer)
          #%top-interaction #%app #%datum + - / * < > <= >= => #%top функция)
 (provide (for-syntax #%app #%top #%datum выбор-синтаксиса разобрать-синтаксис
@@ -79,39 +79,44 @@
 (синоним unquote-splicing не-цитируя-список)
 
 (define-syntax (используется stx)
-  (syntax-case stx (с-префиксом)
+  (syntax-case stx (с-префиксом файл)
     [(_ имя)
      (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
      (quasisyntax/loc stx
        (require
          #,(datum->syntax #'имя
-                          (list 'file (path->string
+                          (list #'file (path->string
                                        (collection-file-path
                                         (format "~a.1" (syntax-e #'имя)) "1"
-                                        #:check-compiled? #t))))))]
+                                        #:check-compiled? #t)))
+                          #'имя #'имя #'имя)))]
     [(_ (с-префиксом префикс имя))
      (quasisyntax/loc stx
        (require (prefix-in префикс имя)))]
+    [(_ (файл имя)) (quasisyntax/loc stx
+                      (require #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя #'имя)))]
     [(_ x) (syntax/loc stx (require x))]
     [(_ x ...) #'(begin (используется x) ...)]))
 
-(define-for-syntax (f x) 1)
-
 (define-syntax (используется-для-синтаксиса stx)
-  (syntax-case stx (с-префиксом)
+  (syntax-case stx (с-префиксом файл)
     [(_ x)
      (and (identifier? #'x) (not (module-path? (syntax-e #'x))))
      (quasisyntax/loc stx
        (require
          (for-syntax
           #,(datum->syntax #'x
-                           (list 'file (path->string
+                           (list #'file (path->string
                                         (collection-file-path
                                          (format "~a.1" (syntax-e #'x)) "1"
-                                         #:check-compiled? #t)))))))]
+                                         #:check-compiled? #t)))
+                           #'имя #'имя))))]
     [(_ (с-префиксом префикс имя))
      (quasisyntax/loc stx
-       (require (for-syntax #,(datum->syntax #'x (list 'prefix-in #'префикс #'имя)))))]
+       (require (for-syntax (prefix-in префикс имя))))]
+    [(_ (файл имя))
+     (quasisyntax/loc stx
+       (require (for-syntax #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя))))]
     [(_ x) (syntax/loc stx (require x))]
     [(_ x ...) #'(begin (используется x) ...)]))
 
@@ -312,12 +317,13 @@
 (define-syntax (надо-быстро stx)
   1)
 
-(define-for-syntax (add-headers body)
-  (define step1 '(используется базовая))
-  (define l (syntax->list body))
-  (datum->syntax body (if (null? l)
-                          (list (datum->syntax body step1))
-                          (cons (datum->syntax (car l) step1) l))))
+(define-for-syntax (add-headers stx body)
+  (define base-srcloc (srcloc (syntax-source stx) 1 0 1 3))
+  (syntax-case body ()
+    [(expr1 expr ...)
+     (begin
+       #`((используется #,(datum->syntax stx 'базовая base-srcloc #'orig)) expr1 expr ...))]
+    [_ #'expr1]))
 
 (define-syntax (module-begin stx)
   (syntax-case stx (системная)
@@ -330,7 +336,7 @@
         body ...
         (begin-for-syntax (end))))]
     [(_ body ...)
-     (with-syntax ([(new-body ...) (add-headers #'(body ...))])
+     (with-syntax ([(new-body ...) (add-headers stx #'(body ...))])
        (quasisyntax/loc stx
          (#%module-begin
           (require (for-syntax 1/run-fast))
