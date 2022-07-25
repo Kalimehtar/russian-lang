@@ -1,7 +1,7 @@
 #lang racket/base
 
 (module reader syntax/module-reader
-  1/dict
+  1/lang
   #:read my-read
   #:read-syntax my-read-syntax
   #:language-info #(1/language-info get-language-info #f)

@@ -11,6 +11,12 @@
                    [current-input-port port])      
       (strip-context (разобрать-список-с-одной-точкой (indent-read))))))
 
+;; перевести-ошибку - Переводит строку описания ошибки exn:fail:read на русский язык.
+;;                    Вызывает исключение с переданным аргументов.
+;; : любое? -> вызывает исключение
+;; translate-error  - Translates message of exn:fail:read to russian.
+;;                    Raises (calls as an exception) given argument.
+;; : any/c -> exception call
 (define (перевести-ошибку e)
   (define dict
     '(("unexpected" . "неожиданно встретилась")
@@ -24,51 +30,73 @@
         (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
   (raise
    (cond
-     [(exn:fail:syntax:unbound? e)
-      (exn:fail:syntax:unbound (exn-message e) (exn-continuation-marks e) (exn:fail:syntax-exprs e))]
      [(exn:fail:read? e) (exn:fail:read
                           (replace-dict (exn-message e) dict)
                           (exn-continuation-marks e) (exn:fail:read-srclocs e))]
      [else e])))
 
-(define (rt-char=? c default-c [c=? char=?])
+;; знаки-равны? - сравнивает знаки с учётом преобразования первого аргумента по таблице чтения
+;; : знак? знак? -> логический?
+;; char-equal?  - compares chars, translating first arg with current readtable
+;; : char? char? -> boolean?
+(define (знаки-равны? c default-c)
   (define-values (c2 _1 _2)
     (if (char? c)
         (let ([r (current-readtable)])
           (if r (readtable-mapping r c) (values c #f #f)))
         (values #f #f #f)))
-  (and (char? c2) (c=? c2 default-c)))
+  (and (char? c2) (char=? c2 default-c)))
 
-(define (accumulate-hspace)
+;; прочитать-пробелы! - читает пробельные символы и собирает их в список
+;; : -> список знаков
+;; read-indent! - reads whitespaces and collect them into a list
+;; : -> list-of char?
+(define (прочитать-пробелы!)
   (define c (peek-char-or-special))
   (if (and (char? c)
            (or (char-whitespace? c) (char=? c #\!))
            (not (eqv? c #\newline)))
       (cons (read-char)
-            (accumulate-hspace))
+            (прочитать-пробелы!))
       null))
 
-(define (comment? c)
-  (and (rt-char=? c #\-) (rt-char=? (peek-char-or-special (current-input-port) 1) #\-)))
+;; комментарий? - определяет начало строчного комментария "--"
+;; : знак? знак? -> логический?
+;; comment? - checks begin of line comment "--"
+;; : char? char? -> boolean?
+(define (комментарий? c c2)
+  (and (знаки-равны? c #\-) (знаки-равны? c2 #\-)))
 
-(define (block-comment? c)
-  (and (rt-char=? c #\#) (rt-char=? (peek-char-or-special (current-input-port) 1) #\|)))
+;; блочный-комментарий? - определяет начало блочного комментария "#-"
+;; : знак? знак? -> логический?
+;; block-comment? - checks begin of block comment "#|"
+;; : char? char? -> boolean?
+(define (блочный-комментарий? c c2)
+  (and (знаки-равны? c #\#) (знаки-равны? c2 #\|)))
+
+;; посмотреть-два-знака - возвращает два следующих непрочитанных знака
+;; : -> значения знак? знак?
+;; peek-two-chars - peeks next two chars
+;; : -> values char? char?
+(define (посмотреть-два-знака)
+  (values (peek-char-or-special)
+          (peek-char-or-special (current-input-port) 1)))
 
 (define (прочитать-отступ!)
-  (define indent (accumulate-hspace))
-  (define c (peek-char-or-special))
+  (define indent (прочитать-пробелы!))
+  (define-values (c c2) (посмотреть-два-знака))
   (cond [(eof-object? c) ""]
-        [(comment? c)
+        [(комментарий? c c2)
          (пропустить-до-конца-строки!)
          (прочитать-отступ!)]
-        [(block-comment? c)
+        [(блочный-комментарий? c c2)
          (пропустить-блочный-комментарий!)
          (прочитать-отступ!)]
         [(eqv? c #\newline)
          (read-char)
          (прочитать-отступ!)]
         [else
-         (when (rt-char=? c #\;) (read-char))
+         (when (знаки-равны? c #\;) (read-char))
          (list->string indent)]))
 
 (define (indentation>? indentation1 indentation2)
@@ -80,31 +108,32 @@
 (define (пропустить-до-конца-строки!)
   (define c (read-char-or-special))
   (unless (or (eof-object? c)
-              (rt-char=? c #\newline))
+              (знаки-равны? c #\newline))
     (пропустить-до-конца-строки!)))
 
 (define (пропустить-блочный-комментарий!)
   (define (rec)
-    (define c (peek-char-or-special))
-    (unless (and (rt-char=? c #\|) (rt-char=? (peek-char-or-special (current-input-port) 1) #\#))
-      (when (block-comment? c)
+    (define-values (c c2) (посмотреть-два-знака))
+    (unless (and (знаки-равны? c #\|)
+                 (знаки-равны? c2 #\#))
+      (when (блочный-комментарий? c c2)
         (пропустить-блочный-комментарий!))
       (read-char-or-special)
       (rec)))
   (read-char) (read-char) (rec) (read-char) (read-char))
      
 (define (пропустить-незначащее! [без-переносов #f])
-  (define c (peek-char-or-special))
+  (define-values (c c2) (посмотреть-два-знака))
   (cond
-    [(and без-переносов (rt-char=? c #\newline))
+    [(and без-переносов (знаки-равны? c #\newline))
      (void)]
     [(and (char? c) (char-whitespace? c))
      (read-char)
      (пропустить-незначащее! без-переносов)]
-    [(comment? c)
+    [(комментарий? c c2)
      (пропустить-до-конца-строки!)
      (пропустить-незначащее! без-переносов)]
-    [(block-comment? c)
+    [(блочный-комментарий? c c2)
      (пропустить-блочный-комментарий!)
      (пропустить-незначащее! без-переносов)]))
 
@@ -388,16 +417,16 @@
     [(eof-object? char)
      (read-char)
      (cons -1 null)]
-    [(and (rt-char=? char #\\)
-          (rt-char=? (peek-char-or-special (current-input-port) 1) #\newline))
+    [(and (знаки-равны? char #\\)
+          (знаки-равны? (peek-char-or-special (current-input-port) 1) #\newline))
      (read-char) (read-char) (read-block level)]
-    [(rt-char=? char #\newline)
+    [(знаки-равны? char #\newline)
      (read-char)     
      (define next-level (прочитать-отступ!))
      (if (indentation>? next-level level)
          (read-blocks next-level)
          (cons next-level null))]
-    [(rt-char=? char #\;)
+    [(знаки-равны? char #\;)
      (read-char)
      (пропустить-незначащее!)
      (cons level null)]
@@ -423,7 +452,7 @@
   (cond
     [(eof-object? char)
      (raise-read-eof-error "файл закончился внутри списка" (current-source-name) ln col pos 1)]
-    [(rt-char=? char end)
+    [(знаки-равны? char end)
      (read-char)
      null]
     [else
@@ -437,24 +466,24 @@
   (define-values (ln col pos) (port-next-location (current-input-port)))
   (cond [(eof-object? char) char]
         [(and
-          (rt-char=? char #\.)
+          (знаки-равны? char #\.)
           (let ([next (peek-char-or-special (current-input-port) 1)])
             (or (eof-object? next)
-                (rt-char=? next #\newline)
-                (rt-char=? next #\space)
-                (rt-char=? next #\tab))))
+                (знаки-равны? next #\newline)
+                (знаки-равны? next #\space)
+                (знаки-равны? next #\tab))))
          (read-char)
          (datum->syntax #f '|.| (vector (current-source-name) ln col pos 1))]
-        [(rt-char=? char #\;)
+        [(знаки-равны? char #\;)
          (read-char)
          (datum->syntax #f '|;| (vector (current-source-name) ln col pos 1))]
-        [(rt-char=? char #\`)
+        [(знаки-равны? char #\`)
          (read-char)
          (readquote 'квазицитата)]
-        [(rt-char=? char #\')
+        [(знаки-равны? char #\')
          (read-char)
          (readquote 'цитата)]
-        [(rt-char=? char #\,)
+        [(знаки-равны? char #\,)
          (read-char)
          (cond
            [(eqv? (peek-char-or-special) #\@)
@@ -464,29 +493,29 @@
         [else
          (define res
            (cond
-             [(rt-char=? char #\()
+             [(знаки-равны? char #\()
               (read-char)
               (прочитать-список #\))]
-             [(rt-char=? char #\[)
+             [(знаки-равны? char #\[)
               (read-char)
               (прочитать-список #\])]
-             [(rt-char=? char #\{)
+             [(знаки-равны? char #\{)
               (read-char)
               (прочитать-список #\})]
              [else (read-syntax (current-source-name))]))
          (let loop ([res res])
            (define следующий-символ (peek-char-or-special))
            (cond
-             [(rt-char=? следующий-символ #\()
+             [(знаки-равны? следующий-символ #\()
               (read-char)
               (loop (datum->syntax #f (cons res (прочитать-список #\)))))]
-             [(rt-char=? следующий-символ #\[)
+             [(знаки-равны? следующий-символ #\[)
               (read-char)
               (loop (datum->syntax
                      #f
                      `(квадратные-скобки ,res
                                          ,(список-или-элемент (прочитать-список #\])))))]
-             [(rt-char=? следующий-символ #\{)
+             [(знаки-равны? следующий-символ #\{)
               (read-char)
               (define l (прочитать-список #\}))
               (loop (datum->syntax
