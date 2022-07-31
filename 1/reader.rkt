@@ -164,12 +164,12 @@
      (cond
        [(and (syntax? stx) (eq? (syntax-e stx) '|.|))
         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
-       [(operator? stx) => (λ (parsed)                             
-                             (apply оператор! (syntax->datum parsed))
-                             (indent-read))]
+       [(директива-оператор? stx) => (λ (parsed)                             
+                                       (apply оператор! (syntax->datum parsed))
+                                       (indent-read))]
        [else stx])]))
 
-(define (operator? stx)
+(define (директива-оператор? stx)
   (define (операция-и-приоритет? оп прио оператор! ассоциативность)
     (and (symbol? (syntax-e оп))
          (real? (syntax-e прио))
@@ -179,9 +179,9 @@
     [(оп оператор! прио)
      (операция-и-приоритет? #'оп #'прио #'оператор! #'нет)
      #'(оп прио)]
-    [(оп оператор! прио ассоциативность)
+    [(оп оператор! (прио ассоциативность))
      (операция-и-приоритет? #'оп #'прио #'оператор! #'ассоциативность)
-     #'(оп прио лево)]
+     #'(оп прио ассоциативность)]
     [else #f]))
 
 (define (прочитать-блок-с-правилами level)
@@ -315,8 +315,8 @@
          stx
          (map применить-правила
               (append (list оператор)
-                      (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
-                      (if (or (list1? право)
+                      (if (список1? лево) лево (list (datum->syntax stx (reverse лево))))
+                      (if (or (список1? право)
                               (and (eq? '= (syntax-e оператор)) (описание-функции лево))
                               (eq? '? (syntax-e оператор)))
                           право
@@ -336,7 +336,7 @@
                              (cons элем лево)
                              приоритет)]))
 
-(define (list1? x)
+(define (список1? x)
   (and
    (not (null? x))
    (null? (cdr x))))
@@ -446,7 +446,7 @@
      (cons level null)]
     [else
      (define-values (ln col pos) (port-next-location (current-input-port)))
-     (define first (read-item))
+     (define first (прочитать-элемент))
      (match-define (cons new-level rest) (прочитать-блок level))
      (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
      (cons new-level (if (eof-object? first) first (cons first rest)))]))
@@ -454,7 +454,7 @@
 (define (прочитать-цитату qt)
   (define char (peek-char-or-special))
   (define-values (ln col pos) (port-next-location (current-input-port)))  
-  (define stx (if (char-whitespace? char) qt (list qt (read-item))))
+  (define stx (if (char-whitespace? char) qt (list qt (прочитать-элемент))))
   (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
   (datum->syntax #f stx
                  (vector (current-source-name) ln col pos (- end-pos pos))))
@@ -470,12 +470,12 @@
      (read-char)
      null]
     [else
-     (cons (read-item) (прочитать-список end))]))
+     (cons (прочитать-элемент) (прочитать-список end))]))
 
 (define (прочитать-список-с-правилами последний-символ)
   (применить-правила-к-списку (прочитать-список последний-символ)))
 
-(define (read-item)
+(define (прочитать-элемент)
   (define-values (c c2) (посмотреть-два-знака))
   (define-values (ln col pos) (port-next-location (current-input-port)))
   (cond [(eof-object? c) c]
