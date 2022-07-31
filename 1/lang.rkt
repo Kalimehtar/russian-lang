@@ -323,7 +323,7 @@
     [(expr1 expr ...)
      (begin
        #`((используется #,(datum->syntax stx 'базовая base-srcloc #'orig)) expr1 expr ...))]
-    [_ #'expr1]))
+    [_ body]))
 
 (define-syntax (module-begin stx)
   (syntax-case stx (системная)

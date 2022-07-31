@@ -99,18 +99,26 @@
          (when (знаки-равны? c #\;) (read-char))
          (list->string indent)]))
 
-(define (indentation>? indentation1 indentation2)
-  (define len1 (string-length indentation1))
-  (define len2 (string-length indentation2))
+;; отступ-увеличен? - отступ `новый` больше отступа `старый` и их начала совпадают
+;; : строка? строка? -> логический?
+;; indent>? - first arg is more than second arg and begins with it
+;; : string? string? -> boolean?
+(define (отступ-увеличен? новый старый)
+  (define len1 (string-length новый))
+  (define len2 (string-length старый))
   (and (> len1 len2)
-       (string=? indentation2 (substring indentation1 0 len2))))
+       (string=? старый (substring новый 0 len2))))
 
+;; пропустить-до-конца-строки! - читает и игнорирует до конца строки или файла
+;; skip-to-end-of-line - reads and skips until the end of line or file
 (define (пропустить-до-конца-строки!)
   (define c (read-char-or-special))
   (unless (or (eof-object? c)
               (знаки-равны? c #\newline))
     (пропустить-до-конца-строки!)))
 
+;; пропустить-блочный-комментарий! - читает и игнорирует блок #|...|# с учётом вложенных комментариев
+;; skip-block-comment! - reads and skips block #|...|# considering nested
 (define (пропустить-блочный-комментарий!)
   (define (rec)
     (define-values (c c2) (посмотреть-два-знака))
@@ -121,7 +129,12 @@
       (read-char-or-special)
       (rec)))
   (read-char) (read-char) (rec) (read-char) (read-char))
-     
+
+;; пропустить-незначащее! - читает и пропускает незначащие знаки (пробелы и комментарии).
+;; Если без-переносов ложь или отсутствует, тогда переносы тоже незначащие.
+;; : логический? -> пусто?
+;; skip-meaningless! without-newlines - reads and skips whitespace and comments
+;; : boolean? -> void?
 (define (пропустить-незначащее! [без-переносов #f])
   (define-values (c c2) (посмотреть-два-знака))
   (cond
@@ -147,7 +160,7 @@
      (raise-read-error "Выражения верхнего уровня должны начнинаться с начала строки"
                        (current-source-name) ln 0 (- pos col) col)]
     [else
-     (match-define (cons level stx) (read-block-clean ""))
+     (match-define (cons level stx) (прочитать-блок-с-правилами ""))
      (cond
        [(and (syntax? stx) (eq? (syntax-e stx) '|.|))
         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
@@ -171,15 +184,15 @@
      #'(оп прио лево)]
     [else #f]))
 
-(define (read-block-clean level)
+(define (прочитать-блок-с-правилами level)
   (define-values (ln col pos) (port-next-location (current-input-port)))
-  (match-define (cons next-level список-синтаксисов) (read-block level))
+  (match-define (cons next-level список-синтаксисов) (прочитать-блок level))
   (cons next-level
         (match список-синтаксисов
           [(list x) x]
           [_
            (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
-           (clean (datum->syntax #f список-синтаксисов
+           (применить-правила (datum->syntax #f список-синтаксисов
                                  (vector (current-source-name)
                                          ln col pos (- end-pos pos))))])))
 
@@ -190,7 +203,7 @@
       [(null? l)
        (datum->syntax x
                       (map (λ (elem)
-                             (clean (список-или-элемент (datum->syntax x elem))))
+                             (применить-правила (список-или-элемент (datum->syntax x elem))))
                            (filter (λ (x) (not (null? x)))
                                    (reverse (cons-cr)))))]
       [(eq? (syntax-e (car l)) '|;|) (loop (cons-cr) null (cdr l))]
@@ -300,7 +313,7 @@
              (values оператор право лево)]))
         (datum->syntax
          stx
-         (map clean
+         (map применить-правила
               (append (list оператор)
                       (if (list1? лево) лево (list (datum->syntax stx (reverse лево))))
                       (if (or (list1? право)
@@ -342,12 +355,12 @@
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
      #'(если (a b ...) (иначе c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(если (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...)
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)))) b ...)
              (иначе c ...))]
     [(если a (~datum тогда) b ...)
      #'(если (a b ...))]
     [(если a ... (~datum тогда) b ...)
-     #`(если (#,(clean (datum->syntax x (syntax-e #'(a ...)))) b ...))]
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)))) b ...))]
     [_ x]))
 
 (define (учесть-цитирование x)
@@ -362,29 +375,30 @@
                  (~datum не-цитируя)
                  (~datum не-цитируя-список)))
       b c d ...)
-     #`(q #,(clean #'(b c d ...)))]
+     #`(q #,(применить-правила #'(b c d ...)))]
     [_ x]))
 
 (define (обработать-$ x)
   (syntax-parse x
     [(a ... (~datum $) b) #'(a ... b)]
-    [(a ... (~datum $) b ...) (clean (datum->syntax x (syntax-e #`(a ... #,(clean #'(b ...))))))]
+    [(a ... (~datum $) b ...)
+     (применить-правила (datum->syntax x (syntax-e #`(a ... #,(применить-правила #'(b ...))))))]
     [_ x]))
 
-(define (clean x)
+(define (применить-правила x)
   (define y (обработать-операторы
              (обработать-$
               (обработать-если
                (учесть-цитирование x)))))
   (syntax-parse y
-    [(b ... (kw:keyword c) d ...) (clean #'(b ... kw c d ...))]
-    [(b ... (kw:keyword c ...) d ...) (clean #'(b ... kw (c ...) d ...))]
+    [(b ... (kw:keyword c) d ...) (применить-правила #'(b ... kw c d ...))]
+    [(b ... (kw:keyword c ...) d ...) (применить-правила #'(b ... kw (c ...) d ...))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [_ y]))
 
-(define (clean-list список)
+(define (применить-правила-к-списку список)
   (define x (datum->syntax #f список))
-  (clean
+  (применить-правила
    (syntax-parse x
      [(a ... (~datum |;|) . b) (разделить-по-точке-с-запятой x)]
      [_ x])))
@@ -410,34 +424,34 @@
        [else x])]
     [else x]))
 
-(define (read-block level)
+(define (прочитать-блок level)
   (пропустить-незначащее! #t)
-  (define char (peek-char-or-special))
+  (define-values (c c2) (посмотреть-два-знака))
   (cond
-    [(eof-object? char)
+    [(eof-object? c)
      (read-char)
      (cons -1 null)]
-    [(and (знаки-равны? char #\\)
-          (знаки-равны? (peek-char-or-special (current-input-port) 1) #\newline))
-     (read-char) (read-char) (read-block level)]
-    [(знаки-равны? char #\newline)
+    [(and (знаки-равны? c #\\)
+          (знаки-равны? c2 #\newline))
+     (read-char) (read-char) (прочитать-блок level)]
+    [(знаки-равны? c #\newline)
      (read-char)     
      (define next-level (прочитать-отступ!))
-     (if (indentation>? next-level level)
-         (read-blocks next-level)
+     (if (отступ-увеличен? next-level level)
+         (прочитать-блоки next-level)
          (cons next-level null))]
-    [(знаки-равны? char #\;)
+    [(знаки-равны? c #\;)
      (read-char)
      (пропустить-незначащее!)
      (cons level null)]
     [else
      (define-values (ln col pos) (port-next-location (current-input-port)))
      (define first (read-item))
-     (match-define (cons new-level rest) (read-block level))
+     (match-define (cons new-level rest) (прочитать-блок level))
      (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
      (cons new-level (if (eof-object? first) first (cons first rest)))]))
 
-(define (readquote qt)
+(define (прочитать-цитату qt)
   (define char (peek-char-or-special))
   (define-values (ln col pos) (port-next-location (current-input-port)))  
   (define stx (if (char-whitespace? char) qt (list qt (read-item))))
@@ -445,7 +459,7 @@
   (datum->syntax #f stx
                  (vector (current-source-name) ln col pos (- end-pos pos))))
 
-(define (read-list end)
+(define (прочитать-список end)
   (пропустить-незначащее!)
   (define char (peek-char-or-special))
   (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -456,80 +470,80 @@
      (read-char)
      null]
     [else
-     (cons (read-item) (read-list end))]))
+     (cons (read-item) (прочитать-список end))]))
 
-(define (прочитать-список последний-символ)
-  (clean-list (read-list последний-символ)))
+(define (прочитать-список-с-правилами последний-символ)
+  (применить-правила-к-списку (прочитать-список последний-символ)))
 
 (define (read-item)
-  (define char (peek-char-or-special))
+  (define-values (c c2) (посмотреть-два-знака))
   (define-values (ln col pos) (port-next-location (current-input-port)))
-  (cond [(eof-object? char) char]
+  (cond [(eof-object? c) c]
         [(and
-          (знаки-равны? char #\.)
-          (let ([next (peek-char-or-special (current-input-port) 1)])
+          (знаки-равны? c #\.)
+          (let ([next c2])
             (or (eof-object? next)
                 (знаки-равны? next #\newline)
                 (знаки-равны? next #\space)
                 (знаки-равны? next #\tab))))
          (read-char)
          (datum->syntax #f '|.| (vector (current-source-name) ln col pos 1))]
-        [(знаки-равны? char #\;)
+        [(знаки-равны? c #\;)
          (read-char)
          (datum->syntax #f '|;| (vector (current-source-name) ln col pos 1))]
-        [(знаки-равны? char #\`)
+        [(знаки-равны? c #\`)
          (read-char)
-         (readquote 'квазицитата)]
-        [(знаки-равны? char #\')
+         (прочитать-цитату 'квазицитата)]
+        [(знаки-равны? c #\')
          (read-char)
-         (readquote 'цитата)]
-        [(знаки-равны? char #\,)
+         (прочитать-цитату 'цитата)]
+        [(знаки-равны? c #\,)
          (read-char)
          (cond
-           [(eqv? (peek-char-or-special) #\@)
+           [(eqv? c2 #\@)
             (read-char)
-            (readquote 'не-цитируя-список)]
-           [else (readquote 'не-цитируя)])]
+            (прочитать-цитату 'не-цитируя-список)]
+           [else (прочитать-цитату 'не-цитируя)])]
         [else
          (define res
            (cond
-             [(знаки-равны? char #\()
+             [(знаки-равны? c #\()
               (read-char)
-              (прочитать-список #\))]
-             [(знаки-равны? char #\[)
+              (прочитать-список-с-правилами #\))]
+             [(знаки-равны? c #\[)
               (read-char)
-              (прочитать-список #\])]
-             [(знаки-равны? char #\{)
+              (прочитать-список-с-правилами #\])]
+             [(знаки-равны? c #\{)
               (read-char)
-              (прочитать-список #\})]
+              (прочитать-список-с-правилами #\})]
              [else (read-syntax (current-source-name))]))
          (let loop ([res res])
            (define следующий-символ (peek-char-or-special))
            (cond
              [(знаки-равны? следующий-символ #\()
               (read-char)
-              (loop (datum->syntax #f (cons res (прочитать-список #\)))))]
+              (loop (datum->syntax #f (cons res (прочитать-список-с-правилами #\)))))]
              [(знаки-равны? следующий-символ #\[)
               (read-char)
               (loop (datum->syntax
                      #f
                      `(квадратные-скобки ,res
-                                         ,(список-или-элемент (прочитать-список #\])))))]
+                                         ,(список-или-элемент (прочитать-список-с-правилами #\])))))]
              [(знаки-равны? следующий-символ #\{)
               (read-char)
-              (define l (прочитать-список #\}))
+              (define l (прочитать-список-с-правилами #\}))
               (loop (datum->syntax
                      #f
                      (list* (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить) res l)))]
              [else (заменить-логические res)]))]))
 
-(define (read-blocks level)
+(define (прочитать-блоки level)
   ;; indent -> (listof syntax?)
-  (match-define (cons next-level stx) (read-block-clean level))
+  (match-define (cons next-level stx) (прочитать-блок-с-правилами level))
   (cond
     [(null? stx) (cons next-level null)]
     [(equal? next-level level)
-     (match-define (cons next-next-level next-blocks) (read-blocks level))
+     (match-define (cons next-next-level next-blocks) (прочитать-блоки level))
      (list* next-next-level stx next-blocks)]
     [else
      (cons next-level (list stx))]))

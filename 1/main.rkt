@@ -22,11 +22,6 @@
              [(drracket:default-filters)
               `(["Исходники программ" "*.1"])]
              [(color-lexer)
-              (let ([racket-lexer (dynamic-require 'syntax-color/racket-lexer 'racket-lexer)])
-                (λ (in)
-                  (define-values (str type r1 r2 r3) (racket-lexer in))
-                  (if (or (equal? str "истина") (equal? str "ложь"))
-                      (values str 'constant r1 r2 r3)
-                      (values str type r1 r2 r3))))]
+              (dynamic-require '1/lexer 'racket-lexer)]
              [else (fallback)]))
   (require 1/reader))
