@@ -9,15 +9,15 @@
   (with-handlers ([(λ (e) #t) перевести-ошибку])
     (parameterize ([current-source-name source-name]
                    [current-input-port port])      
-      (strip-context (разобрать-список-с-одной-точкой (indent-read))))))
+      (strip-context (разобрать-список-с-одной-точкой (чтение-кода-с-отступами))))))
 
-;; перевести-ошибку - Переводит строку описания ошибки exn:fail:read на русский язык.
+;; перевести-ошибку ошибка - Переводит строку описания ошибки exn:fail:read на русский язык.
 ;;                    Вызывает исключение с переданным аргументов.
 ;; : любое? -> вызывает исключение
-;; translate-error  - Translates message of exn:fail:read to russian.
+;; translate-error error - Translates message of exn:fail:read to russian.
 ;;                    Raises (calls as an exception) given argument.
 ;; : any/c -> exception call
-(define (перевести-ошибку e)
+(define (перевести-ошибку ошибка)
   (define dict
     '(("unexpected" . "неожиданно встретилась")
       ("expected" . "ожидалась")
@@ -30,22 +30,23 @@
         (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
   (raise
    (cond
-     [(exn:fail:read? e) (exn:fail:read
-                          (replace-dict (exn-message e) dict)
-                          (exn-continuation-marks e) (exn:fail:read-srclocs e))]
-     [else e])))
+     [(exn:fail:read? ошибка) (exn:fail:read
+                          (replace-dict (exn-message ошибка) dict)
+                          (exn-continuation-marks ошибка) (exn:fail:read-srclocs ошибка))]
+     [else ошибка])))
 
-;; знаки-равны? - сравнивает знаки с учётом преобразования первого аргумента по таблице чтения
+;; знаки-равны? знак знак2 -
+;;       сравнивает знаки с учётом преобразования первого аргумента по таблице чтения
 ;; : знак? знак? -> логический?
-;; char-equal?  - compares chars, translating first arg with current readtable
+;; char-equal? char char2 - compares chars, translating first arg with current readtable
 ;; : char? char? -> boolean?
-(define (знаки-равны? c default-c)
-  (define-values (c2 _1 _2)
-    (if (char? c)
+(define (знаки-равны? знак знак2)
+  (define-values (знак* _1 _2)
+    (if (char? знак)
         (let ([r (current-readtable)])
-          (if r (readtable-mapping r c) (values c #f #f)))
+          (if r (readtable-mapping r знак) (values знак #f #f)))
         (values #f #f #f)))
-  (and (char? c2) (char=? c2 default-c)))
+  (and (char? знак*) (char=? знак* знак2)))
 
 ;; прочитать-пробелы! - читает пробельные символы и собирает их в список
 ;; : -> список знаков
@@ -60,9 +61,9 @@
             (прочитать-пробелы!))
       null))
 
-;; комментарий? - определяет начало строчного комментария "--"
+;; комментарий? c c2 - определяет начало строчного комментария "--"
 ;; : знак? знак? -> логический?
-;; comment? - checks begin of line comment "--"
+;; comment? c c2 - checks begin of line comment "--"
 ;; : char? char? -> boolean?
 (define (комментарий? c c2)
   (and (знаки-равны? c #\-) (знаки-равны? c2 #\-)))
@@ -99,9 +100,9 @@
          (when (знаки-равны? c #\;) (read-char))
          (list->string indent)]))
 
-;; отступ-увеличен? - отступ `новый` больше отступа `старый` и их начала совпадают
+;; отступ-увеличен? новый старый - отступ `новый` больше отступа `старый` и их начала совпадают
 ;; : строка? строка? -> логический?
-;; indent>? - first arg is more than second arg and begins with it
+;; indent>? new old - first arg is more than second arg and begins with it
 ;; : string? string? -> boolean?
 (define (отступ-увеличен? новый старый)
   (define len1 (string-length новый))
@@ -130,10 +131,12 @@
       (rec)))
   (read-char) (read-char) (rec) (read-char) (read-char))
 
-;; пропустить-незначащее! - читает и пропускает незначащие знаки (пробелы и комментарии).
-;; Если без-переносов ложь или отсутствует, тогда переносы тоже незначащие.
+;; пропустить-незначащее! без-переносов -
+;;                   читает и пропускает незначащие знаки (пробелы и комментарии).
+;; Если `без-переносов` ложь или отсутствует, тогда переносы тоже незначащие.
 ;; : логический? -> пусто?
-;; skip-meaningless! without-newlines - reads and skips whitespace and comments
+;; skip-meaningless! without-newlines - reads and skips whitespace and comments.
+;; When without-newlines is #f, newlines are whitespaces.
 ;; : boolean? -> void?
 (define (пропустить-незначащее! [без-переносов #f])
   (define-values (c c2) (посмотреть-два-знака))
@@ -150,7 +153,11 @@
      (пропустить-блочный-комментарий!)
      (пропустить-незначащее! без-переносов)]))
 
-(define (indent-read)
+;; чтение-кода-с-отступами - основаной читатель из текущего порта ввода. Читает блок с отступами,
+;;   применяет правила операторов и спецопераций, возвращает синтаксис-список.
+;; indent-read - main read function. Reads a block with indents, applies rules for operators and
+;;   special chars, return syntax list.
+(define (чтение-кода-с-отступами)
   (define indentation (прочитать-отступ!))
   (define-values (ln col pos) (port-next-location (current-input-port)))
   (define c (peek-char-or-special))
@@ -166,16 +173,20 @@
         (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
        [(директива-оператор? stx) => (λ (parsed)                             
                                        (apply оператор! (syntax->datum parsed))
-                                       (indent-read))]
+                                       (чтение-кода-с-отступами))]
        [else stx])]))
 
-(define (директива-оператор? stx)
+;; директива-оператор? синтаксис - является ли переданный синтаксис директивой `оператор!`
+;; : синтаксис? -> логический?
+;; operator-statement? syntax - is given syntax `оператор!` (operator!) statement
+;; : syntax? -> boolean?
+(define (директива-оператор? синтаксис)
   (define (операция-и-приоритет? оп прио оператор! ассоциативность)
     (and (symbol? (syntax-e оп))
          (real? (syntax-e прио))
          (eq? (syntax-e оператор!) 'оператор!)
          (memq (syntax-e ассоциативность) '(право лево нет))))
-  (syntax-case stx ()
+  (syntax-case синтаксис ()
     [(оп оператор! прио)
      (операция-и-приоритет? #'оп #'прио #'оператор! #'нет)
      #'(оп прио)]
@@ -184,9 +195,13 @@
      #'(оп прио ассоциативность)]
     [else #f]))
 
-(define (прочитать-блок-с-правилами level)
+;; прочитать-блок-с-правилами уровень - читает блок на указанном уровне и применяет правила
+;; : строка? -> синтаксис?
+;; read-block-with-rules level - reads block at the given level
+;; : string? -> syntax?
+(define (прочитать-блок-с-правилами уровень)
   (define-values (ln col pos) (port-next-location (current-input-port)))
-  (match-define (cons next-level список-синтаксисов) (прочитать-блок level))
+  (match-define (cons next-level список-синтаксисов) (прочитать-блок уровень))
   (cons next-level
         (match список-синтаксисов
           [(list x) x]
@@ -196,14 +211,18 @@
                                  (vector (current-source-name)
                                          ln col pos (- end-pos pos))))])))
 
-(define (разделить-по-точке-с-запятой x)
-  (let loop ([r null] [c null] [l (syntax-e x)])
+;; разделить-по-точке-с-запятой синтаксис - делит (a ... ; b ... ; ...) -> ((a ...) (b ...) ...)
+;; : синтаксис? -> синтаксис?
+;; split-by-semicolon - split (a ... ; b ... ; ...) -> ((a ...) (b ...) ...)
+;; : syntax? -> syntax?
+(define (разделить-по-точке-с-запятой синтаксис)
+  (let loop ([r null] [c null] [l (syntax-e синтаксис)])
     (define (cons-cr) (cons (reverse c) r))
     (cond
       [(null? l)
-       (datum->syntax x
+       (datum->syntax синтаксис
                       (map (λ (elem)
-                             (применить-правила (список-или-элемент (datum->syntax x elem))))
+                             (применить-правила (список-или-элемент (datum->syntax синтаксис elem))))
                            (filter (λ (x) (not (null? x)))
                                    (reverse (cons-cr)))))]
       [(eq? (syntax-e (car l)) '|;|) (loop (cons-cr) null (cdr l))]
