@@ -1,11 +1,12 @@
 #lang scribble/manual
 
-@(require (for-label 1/dict) scribble/example)
+@(require 1/lang scribble/example)
+@(используется базовая)
 
 @title{Русский язык программирования}
 @author[(author+email "Клочков Роман" "kalimehtar@mail.ru")]
 
-@defmodulelang["1" #:module-path 1/dict #:packages ("russian-lang")]
+@defmodulelang["1" #:module-path 1/lang #:packages ("russian-lang")]
 
 Это руководство описывает русскоязычный язык программирования, основанный
 на идеях из расширения синтаксиса Scheme @hyperlink["http://www.dwheeler.com/readable/"]{readable}.
