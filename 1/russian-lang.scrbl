@@ -1,6 +1,6 @@
 #lang scribble/manual
 
-@(require 1/lang scribble/example (for-label 1/lang) (for-label 1/all-base))
+@(require 1/lang scribble/example (for-label 1/all-base))
 
 @title{Русский язык программирования}
 @author[(author+email "Клочков Роман" "kalimehtar@mail.ru")]
