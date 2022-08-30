@@ -80,8 +80,11 @@
 ;; peek-two-chars - peeks next two chars
 ;; : -> values char? char?
 (define (посмотреть-два-знака)
-  (values (peek-char-or-special)
-          (peek-char-or-special (current-input-port) 1)))
+  (define знак1 (peek-char-or-special))
+  (if (eof-object? знак1)
+      (values знак1 знак1)
+      (values знак1
+              (peek-char-or-special (current-input-port) 1))))
 
 (define (прочитать-отступ!)
   (define indent (прочитать-пробелы!))
@@ -286,15 +289,14 @@
     [(pair? l)
      (define операторы
        (let собрать-операторы ([список (cdr l)] [результат null])
-         (if (or (null? список)
-                 (not (pair? список))
-                 (null? (cdr список))
-                 (not (pair? (cdr список))))
-             результат
-             (собрать-операторы (cdr список)
-                                (if (оператор? (car список))
-                                    (cons (car список) результат)
-                                    результат)))))
+         (match список
+           [(cons голова остаток)
+            #:when (pair? остаток)
+            (собрать-операторы остаток
+                               (if (оператор? голова)
+                                   (cons голова результат)
+                                   результат))]
+           [else результат])))
      (cond
        [(null? операторы) stx]
        [else
@@ -315,7 +317,7 @@
                 [else (минимум (cdr операторы) приоритет направление)])])))
         (when (eq? направление 'нет)
           (define отобранные (filter (λ (оп)
-                                          (= (car (приоритет-оператора оп)) приоритет))
+                                       (= (car (приоритет-оператора оп)) приоритет))
                                      операторы))
           (when (< 1 (length отобранные))
             (raise-syntax-error 'обработать-операторы (format "\
@@ -344,17 +346,13 @@
     [else stx]))
 
 (define (разделить-по-оператору список лево приоритет)
-  (define элем (car список))
+  (match-define (cons элем право) список)
   (cond
     [(and (оператор? элем)
           (= (car (приоритет-оператора элем)) приоритет))
-     (define право (cdr список))
      (values (очистить-оператор элем) лево право)]
     [else
-     (define элем (car список))
-     (разделить-по-оператору (cdr список)
-                             (cons элем лево)
-                             приоритет)]))
+     (разделить-по-оператору право (cons элем лево) приоритет)]))
 
 (define (список1? x)
   (and
@@ -363,12 +361,10 @@
 
 (define (описание-функции список)
   (cond
-    [(syntax? список) (описание-функции (syntax-e список))]
+    [(syntax? список)     (описание-функции (syntax-e список))]
     [(not (cons? список)) #f]
-    [(null? (cdr список))
-     (описание-функции (car список))]
-    [else
-     (not (memq (car список) '(значения шаблон шаблоны)))]))
+    [(null? (cdr список)) (описание-функции (car список))]
+    [else                 (not (memq (car список) '(значения шаблон шаблоны)))]))
 
 (define (обработать-если x)
   (syntax-parse x
@@ -395,8 +391,23 @@
                  (~datum не-цитируя)
                  (~datum не-цитируя-список)))
       b c d ...)
-     #`(q #,(применить-правила #'(b c d ...)))]
+     #`(q #,(применить-правила #'(b c d ...) #t))]
     [_ x]))
+
+(define (не-цитата синтаксис)
+  (syntax-parse синтаксис
+    [((~and q
+            (~or (~datum quote)
+                 (~datum unquote)
+                 (~datum quasiquote)
+                 (~datum unquote-splicing)
+                 (~datum цитата)
+                 (~datum квазицитата)
+                 (~datum не-цитируя)
+                 (~datum не-цитируя-список)))
+      d ...)
+     #f]
+    [_ #t]))
 
 (define (обработать-$ x)
   (syntax-parse x
@@ -405,14 +416,18 @@
      (применить-правила (datum->syntax x (syntax-e #`(a ... #,(применить-правила #'(b ...))))))]
     [_ x]))
 
-(define (применить-правила x)
+(define (применить-правила x [в-цитате #f])
   (define y (обработать-операторы
              (обработать-$
               (обработать-если
                (учесть-цитирование x)))))
   (syntax-parse y
-    [(b ... (kw:keyword c) d ...) (применить-правила #'(b ... kw c d ...))]
-    [(b ... (kw:keyword c ...) d ...) (применить-правила #'(b ... kw (c ...) d ...))]
+    [(b ... (kw:keyword c) d ...)
+     #:when (не-цитата #'(b ...))
+     (применить-правила #'(b ... kw c d ...))]
+    [(b ... (kw:keyword c ...) d ...)
+     #:when (не-цитата #'(b ...))
+     (применить-правила #'(b ... kw (c ...) d ...))]
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [_ y]))
 
@@ -425,8 +440,10 @@
 
 (define (разобрать-список-с-одной-точкой x)
   (syntax-parse x
-    [(a ... (~datum |.|) c) #'(a ... . c)]
-    [(a ... (~datum |.|)) #'(a ... null)]
+    [(a ... (~datum |.|) c)
+     (datum->syntax x (append* (stx-map разобрать-список-с-одной-точкой #'(a ...))
+                               (list (разобрать-список-с-одной-точкой #'c))))]
+    [(a ... (~datum |.|)) (datum->syntax x (stx-map разобрать-список-с-одной-точкой #'(a ... null)))]
     [(a ... (~and dot (~datum |.|)) . b)
      (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
     [(a ...) (datum->syntax x (stx-map разобрать-список-с-одной-точкой x))]
@@ -589,10 +606,17 @@
   (test "(2 3 -- sadasd  sad as\n 4 5)"  '(2 3 4 5))
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
-  (test "цикл/первый\n ;\n  p points\n  #:когда $ tau < p[0]\n bonus := bonus + p[1]"
+  (test "цикл/первый
+  ;
+    p points
+    #:когда $ tau < p[0]
+  bonus := bonus + p[1]"
         '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
                       (:= bonus (+ bonus (квадратные-скобки p 1)))))
-  (test "цикл/первый\n $\n  p points\n bonus := bonus + p[1]"
+  (test "цикл/первый
+  $
+    p points
+  bonus := bonus + p[1]"
         '(цикл/первый ((p points))
                       (:= bonus (+ bonus (квадратные-скобки p 1)))))
   (test "цикл/первый (p points; #:когда $ tau < p[0])\n bonus := bonus + p[2]"

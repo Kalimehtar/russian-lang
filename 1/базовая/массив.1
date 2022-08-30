@@ -14,6 +14,7 @@ mt:define-match-expander массив
     выбор-синтаксиса выражение ()
       (_ образец ...)
          #'(rkt:vector образец ...)
+      _ #'(rkt:procedure-rename rkt:vector (цитата массив))
 
 массив? м =
   rkt:vector? м

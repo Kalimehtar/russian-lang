@@ -6,7 +6,6 @@
   #:read-syntax my-read-syntax
   #:language-info #(1/language-info get-language-info #f)
   #:info (λ (key default f)
-          (define (fallback) (f key default))
            (case key
              [(drracket:submit-predicate)
               (let ([string-trim (dynamic-require 'racket/string 'string-trim)]
@@ -23,5 +22,5 @@
               `(["Исходники программ" "*.1"])]
              [(color-lexer)
               (dynamic-require '1/lexer 'racket-lexer)]
-             [else (fallback)]))
+             [else (f key default)]))
   (require 1/reader))
