@@ -2,7 +2,7 @@
 (require racket/vector racket/string racket/class 1/syn
          (for-syntax (except-in racket/base =) (except-in racket/match ==) 1/run-fast))
 (provide (rename-out [module-begin #%module-begin])
-         (except-out (all-defined-out) module-begin русифицировать-вывод old-printer printer)
+         (except-out (all-defined-out) module-begin русифицировать-вывод old-printer #;printer)
          #%top-interaction #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn))
 (provide (for-syntax #%app #%top #%datum + - / * < > <= >= =>
                      (all-from-out 'syn) λ ... _))
@@ -242,11 +242,11 @@
    (newline порт))
 
 (define old-printer (global-port-print-handler))
-(define (printer что [порт (current-output-port)] [глубина 0])
+#;(define (printer что [порт (current-output-port)] [глубина 0])
   (define (byte-rus s start end)
-      (string->bytes/utf-8
-       (русифицировать-вывод
-        (bytes->string/utf-8 (subbytes s start end)))))
+    (string->bytes/utf-8
+     (русифицировать-вывод
+      (bytes->string/utf-8 (subbytes s start end)))))
   (define russian-port
     (make-output-port
      'byte-upcase
@@ -254,12 +254,13 @@
      порт
      ; Writing procedure:
      (lambda (s* start end non-block? breakable?)
-       (let ([s (byte-rus s* start end)])
-         (if non-block?
-             (write-bytes-avail* s порт)
-             (begin
-               (display s порт)
-               (bytes-length s*)))))
+       (parameterize ([global-port-print-handler old-printer])
+         (let ([s (byte-rus s* start end)])
+           (if non-block?
+               (write-bytes-avail* s порт)
+               (begin
+                 (display s порт)
+                 (bytes-length s*))))))
      ; Close procedure — close original port:
      (lambda () (close-output-port порт))
      ; write-out-special
@@ -272,7 +273,7 @@
              порт)))))
   (old-printer что russian-port глубина))
 
-#;(define (printer что [порт (current-output-port)] [глубина 0])
+(define (printer что [порт (current-output-port)] [глубина 0])
   (define строковый-порт (открыть-запись-в-строку))
   (old-printer что строковый-порт глубина)
   (записать-строку
@@ -326,7 +327,7 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        (global-port-print-handler printer)
+        ;(global-port-print-handler printer)
         (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
         (begin-for-syntax (end))))]
