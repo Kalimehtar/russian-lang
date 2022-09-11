@@ -51,25 +51,30 @@
 
   self-ctor-transformer orig stx =
     transfer-srcloc orig stx =
-      (rkt:datum->syntax orig (извлечь-из-синтаксиса orig) stx orig)
-    (выбор-синтаксиса stx ()
-      [(self arg ...)
-       (rkt:datum->syntax stx
-         (пара 
-          (rkt:syntax-property
-           (rkt:syntax-property (transfer-srcloc orig #'self)
-                                'constructor-for
-                                (rkt:syntax-local-introduce #'self))
-           alias-of (rkt:syntax-local-introduce #'self))
-          (извлечь-из-синтаксиса (rkt:syntax (arg ...))))
-         stx
-         stx)]
-      [self (идентификатор? #'self)
+      rkt:datum->syntax orig
+        извлечь-из-синтаксиса orig
+        stx
+        orig
+    выбор-синтаксиса stx ()
+      (self arg ...)
+        rkt:datum->syntax stx
+          пара 
+            rkt:syntax-property
+              rkt:syntax-property
+                transfer-srcloc orig #'self
+                'constructor-for
+                rkt:syntax-local-introduce #'self
+              alias-of
+              rkt:syntax-local-introduce #'self
+            извлечь-из-синтаксиса #'(arg ...)
+          stx
+          stx
+      self (идентификатор? #'self)
        (rkt:syntax-property
         (rkt:syntax-property (transfer-srcloc orig #'self)
                          'constructor-for
                          (rkt:syntax-local-introduce #'self))
-        alias-of (rkt:syntax-local-introduce #'self))])
+        alias-of (rkt:syntax-local-introduce #'self))
 
 
   make-self-ctor-checked-struct-info =
@@ -706,8 +711,8 @@
                                      (loop (rkt:add1 i) (оставшиеся fields))
                                      (пара #`(rkt:make-struct-field-mutator -set! #,i '#,(field-id (первый fields)))
                                            (loop (rkt:add1 i) (оставшиеся fields))))))))))))
-       (compile-time-defns =
-        (функция (body-only?)
+       compile-time-defns =
+        функция (body-only?)
           (protect = (λ (sel)
                             (&& sel
                                  (? (извлечь-из-синтаксиса sel)
@@ -728,7 +733,7 @@
                            (? include-autos?
                                #'make-struct-auto-info
                                #'make-struct-field-info))))
-          (define-syntax-body =
+          define-syntax-body =
             #`(#,mk-info
                (λ ()
                  (список
@@ -740,7 +745,7 @@
                   (список
                    #,@(отобразить protect (развернуть sels))
                    #,@(? super-info
-                          (отобразить protect super-info[3])
+                          (отобразить protect (rkt:list-ref super-info 3))
                           (? super-expr
                               '(#f)
                               пустой-список)))
@@ -755,7 +760,7 @@
                             (пара (protect (первый sets))
                                   (loop (оставшиеся fields) (оставшиеся sets)))])))
                    #,@(? super-info
-                          (отобразить protect super-info[4])
+                          (отобразить protect (rkt:list-ref super-info 4))
                           (? super-expr
                               '(#f)
                               пустой-список)))
@@ -779,12 +784,12 @@
                       пустой-список)
                #,@(? name-as-ctor?
                       (список #`(функция () (rkt:quote-syntax #,make-)))
-                      пустой-список)))
-        (? body-only?
-           define-syntax-body
-           (квазисинтаксис/место stx
+                      пустой-список))
+          (? body-only?
+             define-syntax-body
+             (квазисинтаксис/место stx
                                  (rkt:define-syntaxes (#,(? name-only? info-name id))
-                                   #,define-syntax-body)))))
+                                   #,define-syntax-body)))
        (extra-compile-time-defs =
         (функция ()
           (если
