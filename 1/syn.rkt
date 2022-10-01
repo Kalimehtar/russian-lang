@@ -4,7 +4,5 @@
 
 (define-syntax (синоним stx)
   (syntax-case stx ()
-    [(_ старый новый)     
-     #'(define-syntax (новый stx)
-         (syntax-case stx ()
-           [(_ . a) #'(старый . a)]))]))
+    [(_ старый новый)
+     #'(define-syntax новый (make-rename-transformer #'старый))]))

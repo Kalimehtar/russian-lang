@@ -9,7 +9,7 @@
 
 (module syn racket/base
   (require syntax/parse (except-in racket/match ==)
-           1/syn racket/string racket/vector (for-syntax syntax/stx racket/base))
+           1/syn racket/string racket/vector (for-syntax syntax/stx racket/base racket/syntax))
   (provide (all-defined-out)
            syntax quasisyntax unsyntax unsyntax-splicing quote)
   (define (translate e)
@@ -56,6 +56,8 @@
   (синоним syntax синтаксис)
   (синоним quasisyntax квазисинтаксис)
   (синоним quasisyntax/loc квазисинтаксис/место)
+  (синоним unsyntax-splicing не-цитируя-список-синтаксиса)
+  (синоним unsyntax не-цитируя-синтаксис)
   (синоним quote цитата)
   (синоним unquote не-цитируя)
   (синоним unquote-splicing не-цитируя-список)
@@ -95,15 +97,18 @@
   (define-syntax (:= stx)
     (syntax-case stx (значения)
       [(_ (значения . а) б) #'(let () (set!-values а б) (values . а))]
-      [(_ коллекция[элемент] значение)
-       #'(cond
-           [(vector? объект) (vector-set! объект поле)]
-           [(hash? объект) (hash-set! объект поле)]
-           [(string? объект) (string-set! объект поле)]
-           [else
-            (raise-syntax-error 'квадратные-скобки
-                                "У объекта ~a нет доступа к полям через квадратные скобки"
-                                объект)])]
+      [(_ объект[поле] значение)
+       #'(let ()
+           (cond
+             [(vector? объект) (vector-set! объект поле значение)]
+             [(hash? объект) (hash-set! объект поле значение)]
+             [(string? объект) (string-set! объект поле значение)]
+             [else
+              (raise-syntax-error 'квадратные-скобки
+                                  "У объекта ~a нет доступа к полям через квадратные скобки"
+                                  объект)])
+           значение)]
+      [(_ (поле а) б) #`(let () (#,(format-id #'поле "изменить-~a!" (syntax-e #'поле)) а б))]
       [(_ а б) #'(let () (set! а б) а)]))
   (define истина #t)
   (define ложь #f)
@@ -308,7 +313,6 @@
 
 (синоним send отправить)
 (синоним send+ отправить+)
-
 
 (define-syntax (надо-быстро stx)
   1)

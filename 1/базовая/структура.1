@@ -358,7 +358,7 @@
             extend-config
               extend-config config '#:name p1
               '#:only-name?
-              '#:name === извлечь-из-синтаксиса (первый p)
+              '#:имя === извлечь-из-синтаксиса (первый p)
             nongen?
         ('#:имя-печати === извлечь-из-синтаксиса (первый p))
           проверить-выражения 1 p "выражение"
@@ -385,7 +385,10 @@
             истина
         (извлечь-из-синтаксиса (первый p) ^в-списке===^
                '(#:изменяемая #:не-определять-значения #:не-определять-синтаксисы))
-          key = извлечь-из-синтаксиса (первый p)
+          key = выбор (извлечь-из-синтаксиса $ первый p)
+            '(#:изменяемая) '#:mutable
+            '(#:не-определять-значения) '#:omit-define-values
+            '(#:не-определять-синтаксисы) '#:omit-define-syntaxes
           когда (lookup config key)
             беда "избыточное" (первый p) ""
           loop
@@ -448,8 +451,8 @@
                       список пустой-список пустой-список
                     checked-struct-info-rec? v
                   ошибка-синтаксиса #f
-                    rkt:format "parent struct type not defined~a"
-                      v ? ";\n identifier does not name struct type information" ""
+                    rkt:format "надтип не определён~a"
+                      v ? ";\n идентификатор не именует тип структуры" ""
                     stx
                     super-id
              -- если надтипа нет, считаем, что проверили
@@ -556,183 +559,226 @@
                  "-"
                  field-id f
            fields
-       (super-struct: = (? super-info
-                          (|| (первый super-info)
-                              (ошибка-синтаксиса
-                               #f
-                               "no structure type descriptor available for supertype"
-                               stx
-                               super-id))
-                          (&& super-expr
-                               #`(пусть ([the-super #,super-expr])
-                                   (? (struct-type? the-super)
-                                       the-super
-                                       (check-struct-type 'fm the-super))))))
-       (prune  = (функция (stx)
-                (rkt:syntax-protect
-                 (rkt:identifier-prune-lexical-context stx
-                    (список (извлечь-из-синтаксиса stx) '#%top)))))
-       (reflect-name-expr = (? reflect-name
-                              (выбор-синтаксиса reflect-name (quote цитата)
-                                [(quote id)
-                                 (идентификатор? #'id)
-                                 reflect-name]
-                                [(цитата id)
-                                 (идентификатор? #'id)
-                                 reflect-name]
-                                [else
-                                 (quasisyntax (check-reflection-name 'fm #,reflect-name))])
-                              (quasisyntax '#,id)))
+       super-struct: = super-info ?
+         первый super-info ||
+           ошибка-синтаксиса #f
+              "нет информации о типе для надтипа"
+              stx
+              super-id
+         super-expr &&
+           #` пусть
+             $ the-super #,super-expr
+             struct-type? the-super ?
+               the-super
+               check-struct-type 'fm the-super
+       prune = функция (stx)
+                 rkt:syntax-protect
+                   rkt:identifier-prune-lexical-context stx
+                     список
+                       извлечь-из-синтаксиса stx
+                       '#%top
+       reflect-name-expr = reflect-name ?
+         выбор-синтаксиса reflect-name (quote цитата)
+           (quote id)
+             идентификатор? #'id
+             reflect-name
+           (цитата id)
+             идентификатор? #'id
+             reflect-name
+           иначе
+             quasisyntax $ check-reflection-name 'fm #,reflect-name
+         quasisyntax '#,id
 
-       (= struct-name-size (rkt:string-length (rkt:symbol->string (извлечь-из-синтаксиса id))))
-       (= struct-name/locally-introduced (rkt:syntax-local-introduce id))
-       (= struct-name-to-predicate-directive
-         (массив (rkt:syntax-local-introduce id?)
-                 0
-                 struct-name-size
-                 struct-name/locally-introduced
-                 0
-                 struct-name-size))
+       struct-name-size = rkt:string-length
+         rkt:symbol->string
+           извлечь-из-синтаксиса id
+       struct-name/locally-introduced = rkt:syntax-local-introduce id
+       struct-name-to-predicate-directive =
+         массив
+           rkt:syntax-local-introduce id?
+           0
+           struct-name-size
+           struct-name/locally-introduced
+           0
+           struct-name-size
                    
-       (= struct-name-to-old-style-maker-directive
-         (? ctor-name
-             #f
-             (массив (rkt:syntax-local-introduce make-)
-                     5
-                     struct-name-size
-                     struct-name/locally-introduced
-                     0
-                     struct-name-size)))
+       struct-name-to-old-style-maker-directive =
+         ctor-name ? #f
+           массив
+             rkt:syntax-local-introduce make-
+             5
+             struct-name-size
+             struct-name/locally-introduced
+             0
+             struct-name-size
                    
-       (= (struct-name-to-selector/mutator-directive id-stx selector?)
-         (массив (rkt:syntax-local-introduce id-stx)
-                 (? selector? 0 4)
-                 struct-name-size
-                 struct-name/locally-introduced
-                 0
-                 struct-name-size))
-       ((field-to-selector/mutator-directive field id-stx selector?) =
-         (fld-size = rkt:string-length $ rkt:symbol->string $ извлечь-из-синтаксиса $ field-id field)
-         (массив (rkt:syntax-local-introduce id-stx)
-                 (+ (? selector? 1 5) struct-name-size)
-                 fld-size
-                 (rkt:syntax-local-introduce (field-id field))
-                 0
-                 fld-size))
+       struct-name-to-selector/mutator-directive id-stx selector? =
+         массив
+           rkt:syntax-local-introduce id-stx
+           selector? ? 0 4
+           struct-name-size
+           struct-name/locally-introduced
+           0
+           struct-name-size
+
+       field-to-selector/mutator-directive field id-stx selector? =
+         fld-size = rkt:string-length $ rkt:symbol->string $ извлечь-из-синтаксиса $ field-id field
+         массив
+           rkt:syntax-local-introduce id-stx
+           (selector? ? 1 5) + struct-name-size
+           fld-size
+           rkt:syntax-local-introduce $ field-id field
+           0
+           fld-size
                   
-       (= (значения sets field-to-mutator-directives sets-auto-count)
-         (пусть loop ([fields fields])
-           (если
-             [(пустой? fields) (значения пустой-список пустой-список 0)]
-             [(не (|| mutable? (field-mutable? (первый fields))))
-              (loop (оставшиеся fields))]
-             [иначе
-              (= (значения other-sets other-directives count)
-                (loop (оставшиеся fields)))
-              (count* = (? (field-auto? (первый fields))
-                                 (+ count 1)
-                                 count))
-              (this-set =
-                (build-name id
-                            "set-"
-                            id
-                            "-"
-                            (field-id (первый fields))
-                            "!"))
-              (значения (this-set : other-sets)
-                      ((field-to-selector/mutator-directive (первый fields)
-                                                                 this-set
-                                                                 #f) :
-                            other-directives)
-                      count*)])))
+       значения sets field-to-mutator-directives sets-auto-count =
+         пусть цикл ([поля fields])
+           если
+             (пустой? поля)
+               значения пустой-список пустой-список 0
+             (не (mutable? || field-mutable? первый(поля)))
+               цикл $ оставшиеся поля
+             иначе
+               значения other-sets other-directives count =
+                 цикл $ оставшиеся поля
+               count* =
+                 field-auto? первый(поля) ?
+                   + count 1
+                   count
+               this-set =
+                 префикс || суффикс ?
+                   build-name id
+                     "изменить-"
+                     префикс || ""
+                     field-id $ первый поля
+                     суффикс || ""
+                     "!"
+                   build-name id
+                     "изменить-"
+                     id
+                     "-"
+                     field-id $ первый поля
+                     "!"
+               значения
+                 this-set : other-sets
+                 пара
+                   field-to-selector/mutator-directive
+                     первый поля
+                     this-set
+                     #f
+                   other-directives
+                 count*
                    
-       (= all-directives
-         (++ 
-          (список struct-name-to-predicate-directive)
-          (? struct-name-to-old-style-maker-directive
-              (список struct-name-to-old-style-maker-directive)
-              '())
+       all-directives =
+         ++ 
+          список struct-name-to-predicate-directive
+          struct-name-to-old-style-maker-directive ?
+            список struct-name-to-old-style-maker-directive
+            '()
           field-to-mutator-directives
-          (отобразить (λ (field sel)
-                 (field-to-selector/mutator-directive field sel #t))
-               fields
-               sels)
-          (отобразить (λ (sel)
-                 (struct-name-to-selector/mutator-directive
-                  sel
-                  #t))
-               sels)
-          (отобразить (λ (mut)
-                 (struct-name-to-selector/mutator-directive
-                  mut
-                  #f))
-               sets)))
+          отобразить
+            функция (field sel)
+              field-to-selector/mutator-directive field sel #t
+            fields
+            sels
+          отобразить
+            функция (sel)
+              struct-name-to-selector/mutator-directive sel #t
+            sels
+          отобразить
+            функция (mut)
+              struct-name-to-selector/mutator-directive mut #f
+            sets
 
-       (run-time-defns =
-        (функция ()
-          (квазисинтаксис/место stx
-            ((значения #,struct: #,make- #,id? #,@sels #,@sets) =
-              (пусть значения ([(struct: make- id? -ref -set!)
-                            (rkt:syntax-parameterize ([rkt:struct-field-index
-                                                   (make-struct-field-index (rkt:quote-syntax #,(отобразить field-id fields)))])
-                              (rkt:make-struct-type #,reflect-name-expr
-                                                #,super-struct:
-                                                #,(- (длина fields) auto-count)
-                                                #,auto-count
-                                                #,auto-val
-                                                #,(? (пустой? props)
-                                                      #'пустой-список
-                                                      #`(список #,@(отобразить (функция (p)
-                                                                        #`(пара #,(первый p) #,(оставшиеся p)))
-                                                                      props)))
-                                                #,(|| inspector
-                                                      #`(rkt:current-inspector))
-                                                #f
-                                                '#,(пусть loop ([i 0]
-                                                              [fields fields])
-                                                     (если
-                                                       [(пустой? fields) пустой-список]
-                                                       [(field-auto? (первый fields)) пустой-список]
-                                                       [(не (|| mutable? (field-mutable? (первый fields))))
-                                                        (пара i (loop (rkt:add1 i) (оставшиеся fields)))]
-                                                       [иначе (loop (rkt:add1 i) (оставшиеся fields))]))
-                                                #,guard
-                                                '#,(? ctor-only? ctor-name id)))])
-                (значения struct: make- id?
-                        #,@(пусть loop ([i 0][fields fields])
-                             (? (пустой? fields)
-                                 пустой-список
-                                 (пара #`(rkt:make-struct-field-accessor -ref #,i '#,(field-id (первый fields)))
-                                       (loop (rkt:add1 i) (оставшиеся fields)))))
-                        #,@(пусть loop ([i 0][fields fields])
-                             (? (пустой? fields)
-                                 пустой-список
-                                 (? (не (|| mutable? (field-mutable? (первый fields))))
-                                     (loop (rkt:add1 i) (оставшиеся fields))
-                                     (пара #`(rkt:make-struct-field-mutator -set! #,i '#,(field-id (первый fields)))
-                                           (loop (rkt:add1 i) (оставшиеся fields))))))))))))
+       run-time-defns =
+        функция ()
+          квазисинтаксис/место stx
+            значения #,struct: #,make- #,id? #,@sels #,@sets =
+              пусть значения
+                $ (struct: make- id? -ref -set!)
+                  rkt:syntax-parameterize
+                    $ rkt:struct-field-index
+                      make-struct-field-index (rkt:quote-syntax #,(отобразить field-id fields))
+                    rkt:make-struct-type #,reflect-name-expr #,super-struct:
+                      #,(- (длина fields) auto-count)
+                      #,auto-count
+                      #,auto-val
+                      #,(? (пустой? props)
+                           #'пустой-список
+                           #`(список #,@(отобразить
+                                         (функция (p)
+                                                  #`(пара #,(первый p) #,(оставшиеся p)))
+                                         props)))
+                      #,(|| inspector
+                            #`(rkt:current-inspector))
+                      #f
+                      '#,(пусть loop ([i 0]
+                                      [fields fields])
+                           (если
+                            [(пустой? fields) пустой-список]
+                            [(field-auto? (первый fields)) пустой-список]
+                            [(не (|| mutable? (field-mutable? (первый fields))))
+                             (пара i (loop (rkt:add1 i) (оставшиеся fields)))]
+                            [иначе (loop (rkt:add1 i) (оставшиеся fields))]))
+                      #,guard
+                      '#,(? ctor-only? ctor-name id)
+                значения struct: make- id?
+                  не-цитируя-список-синтаксиса
+                    пусть loop
+                      ;
+                        i 0
+                        fields fields                      
+                      пустой? fields ?
+                        пустой-список
+                        пара
+                          #` rkt:make-struct-field-accessor -ref #,i
+                            '#,(field-id (первый fields))
+                          loop
+                            rkt:add1 i
+                            оставшиеся fields
+                  не-цитируя-список-синтаксиса
+                    пусть loop
+                      ;
+                        i 0
+                        fields fields
+                      если
+                        пустой?(fields) пустой-список
+                        ;
+                          не
+                            mutable? || field-mutable? первый(fields)
+                          loop
+                            rkt:add1 i
+                            оставшиеся fields
+                        иначе
+                          пара
+                           #` rkt:make-struct-field-mutator -set! #,i
+                             '#,(field-id (первый fields))
+                           loop
+                             rkt:add1 i
+                             оставшиеся fields
        compile-time-defns =
         функция (body-only?)
-          (protect = (λ (sel)
-                            (&& sel
-                                 (? (извлечь-из-синтаксиса sel)
-                                     #`(rkt:quote-syntax #,(prune sel))
-                                     sel))))
-          (include-autos? = (|| super-info-checked?
-                              name-as-ctor?
-                              (&& super-autos
-                                   (|| (пара? (первый super-autos))
-                                       (пара? (первый $ оставшиеся super-autos))))
-                              (rkt:positive? auto-count)))
-          (mk-info = (? super-info-checked?
-                       (? name-as-ctor?
-                           #'make-self-ctor-checked-struct-info
-                           #'make-checked-struct-info)
-                       (? name-as-ctor?
-                           #'make-self-ctor-struct-info
-                           (? include-autos?
-                               #'make-struct-auto-info
-                               #'make-struct-field-info))))
+          protect = функция (sel)
+            sel &&
+              извлечь-из-синтаксиса sel ?
+                #` rkt:quote-syntax #,(prune sel)
+                sel
+          include-autos? =
+            || super-info-checked?
+               name-as-ctor?
+               super-autos &&
+                 пара? (первый super-autos) || пара? (первый $ оставшиеся super-autos)
+               rkt:positive? auto-count
+          mk-info =
+            super-info-checked? ?
+              name-as-ctor? ?
+                #'make-self-ctor-checked-struct-info
+                #'make-checked-struct-info
+              name-as-ctor? ?
+                #'make-self-ctor-struct-info
+                include-autos? ?
+                  #'make-struct-auto-info
+                  #'make-struct-field-info
           define-syntax-body =
             #`(#,mk-info
                (λ ()
@@ -765,10 +811,10 @@
                               '(#f)
                               пустой-список)))
                   #,(? super-id
-                        (protect super-id)
-                        (? super-expr
-                            #f
-                            #t))))
+                       (protect super-id)
+                       (? super-expr
+                          #f
+                          #t))))
                '#,(отобразить field-id (развернуть fields))
                #,@(? include-autos?
                       (список #`(список (список #,@(отобразить protect 
@@ -777,33 +823,39 @@
                                                  (отобразить protect (первый super-autos))
                                                  пустой-список))
                                     (список #,@(отобразить protect
-                                                  (хвост-списка sets (rkt:max 0 (- (длина sets) sets-auto-count))))
+                                                 (хвост-списка sets
+                                                               (rkt:max 0 (- (длина sets)
+                                                                             sets-auto-count))))
                                           #,@(? super-autos
-                                                 (отобразить protect (первый (оставшиеся super-autos)))
-                                                 пустой-список))))
+                                                (отобразить protect
+                                                            (первый (оставшиеся super-autos)))
+                                                пустой-список))))
                       пустой-список)
                #,@(? name-as-ctor?
-                      (список #`(функция () (rkt:quote-syntax #,make-)))
-                      пустой-список))
-          (? body-only?
-             define-syntax-body
-             (квазисинтаксис/место stx
-                                 (rkt:define-syntaxes (#,(? name-only? info-name id))
-                                   #,define-syntax-body)))
-       (extra-compile-time-defs =
-        (функция ()
-          (если
-            [(&& info-name (не name-only?))
-             (когда omit-define-syntaxes?
-               (ошибка-синтаксиса #f "#:extra-name cannot be combined with #:omit-define-syntaxes" stx))
-             -- reuse existing value
-             (список #`(rkt:define-syntaxes (#,info-name) (rkt:syntax-local-value #'#,id)))]
-            [иначе пустой-список])))
+                     (список #`(функция () (rkt:quote-syntax #,make-)))
+                     пустой-список))
+          body-only? ?
+            define-syntax-body
+            квазисинтаксис/место stx
+              rkt:define-syntaxes (#,(? name-only? info-name id))
+                #,define-syntax-body
 
-       (result =
-        (если
-          [(&& (не omit-define-values?) (не omit-define-syntaxes?))
-           (? (=== (rkt:syntax-local-context) 'top-level)
+       extra-compile-time-defs =
+         функция ()
+           если
+             (info-name && не name-only?)
+               когда omit-define-syntaxes?
+                 ошибка-синтаксиса #f
+                   "#:дополнительное-имя нельзя одновременно с #:не-определять-синтаксисы"
+                   stx
+               -- переиспользуем существующее значение
+               список #`(rkt:define-syntaxes (#,info-name) (rkt:syntax-local-value #'#,id))
+             иначе пустой-список
+
+       result =
+        если
+          (не omit-define-values? && не omit-define-syntaxes?)
+            (? (=== (rkt:syntax-local-context) 'top-level)
                -- Top level: declare names to be bound by `define',
                -- but put run-time expressions after `define-syntaxes'
                -- to they can refer to bindings that are bound by
@@ -818,16 +870,16 @@
                #`(блок 
                    #,(run-time-defns) 
                    #,(compile-time-defns #f)
-                   #,@(extra-compile-time-defs)))]
-          [omit-define-syntaxes?
-           #`(блок
+                   #,@(extra-compile-time-defs)))
+          omit-define-syntaxes?
+            #`(блок
                #,(run-time-defns)
-               #,@(extra-compile-time-defs))]
-          [omit-define-values?
-           #`(блок
+               #,@(extra-compile-time-defs))
+          omit-define-values?
+            #`(блок
                #,(compile-time-defns #f)
-               #,@(extra-compile-time-defs))]
-          [иначе #'(блок)]))
+               #,@(extra-compile-time-defs))
+          иначе #'(блок)
 
        (rkt:syntax-protect
         (rkt:syntax-property
@@ -843,63 +895,70 @@
              (&& (rkt:syntax->list #'id)
                  (=== 2 (длина (rkt:syntax->list #'id)))
                  (rkt:andmap идентификатор? (rkt:syntax->list #'id)))))
-     (ошибка-синтаксиса
+     ошибка-синтаксиса
       #f
-      "bad syntax;\n expected <id> for structure-type name or (<id> <id>) for name and supertype\n name"
+      "ошибка синтаксиса;
+ ожидается <имя> для имени структуры или (<имя> <имя>) для имён структуры и надтипа"
       stx
-      #'id)
+      #'id
     (_ _ id (field ...) . _)
      (блок
        (для-каждого parse-field (rkt:syntax->list #'(field ...)))
        (ошибка-синтаксиса
         #f
-        "bad syntax after field sequence"
+        "ошибка синтаксиса после списка полей"
         stx))
     (_ _ id fields . _)
      (ошибка-синтаксиса
       #f
-      "bad syntax;\n expected a parenthesized sequence of field descriptions"
+      "ошибка синтаксиса;
+ ожидается список описаний полей в скобках"
       stx
       #'fields)
     (_ _ id)
      (ошибка-синтаксиса
       #f
-      "bad syntax;\n missing fields"
+      "ошибка синтаксиса;
+ пропущены поля"
       stx)
     _
      (ошибка-синтаксиса
       #f
-      "bad syntax"
+      "ошибка синтаксиса"
       stx)
 
 
-(определение-синтаксиса (структура/для-синтаксиса stx)
-    (= (config-has-name? config)
-      (если
-        [(rkt:syntax? config) (config-has-name? (rkt:syntax-e config))]
-        [(rkt:pair? config) (rkt:or (rkt:eq? (rkt:syntax-e (rkt:car config)) '#:constructor-name)
-                            (rkt:eq? (rkt:syntax-e (rkt:car config)) '#:extra-constructor-name)
-                            (config-has-name? (rkt:cdr config)))]
-        [иначе #f]))
-    (выбор-синтаксиса stx ()
-      [(_ orig id super-id (fields ...) config ...)
-       (&& (rkt:identifier? #'id)
-            (rkt:identifier? #'super-id))
-       (? (rkt:not (config-has-name? #'(config ...)))
-           (rkt:syntax/loc stx 
-             (определить-структуру orig 
+определение-синтаксиса (структура/для-синтаксиса stx)
+  config-has-name? config =
+    если
+      (rkt:syntax? config)
+        config-has-name?
+          rkt:syntax-e config
+      (rkt:pair? config)
+        ||
+          (rkt:syntax-e (rkt:car config)) === '#:constructor-name
+          (rkt:syntax-e (rkt:car config)) === '#:extra-constructor-name
+          config-has-name? (rkt:cdr config)
+      иначе #f
+  выбор-синтаксиса stx ()
+    (_ orig id super-id (fields ...) config ...)
+      (&& (rkt:identifier? #'id)
+          (rkt:identifier? #'super-id))
+      (? (rkt:not (config-has-name? #'(config ...)))
+        (rkt:syntax/loc stx 
+           (определить-структуру orig 
                (id super-id)
                (fields ...)
                #:имя-конструктора id
                config ...))
-           (rkt:syntax/loc stx 
-             (определить-структуру orig 
+        (rkt:syntax/loc stx 
+           (определить-структуру orig 
                (id super-id)
                (fields ...) 
-               config ...)))]
-      [(_ orig id (fields ...) config ...)
+               config ...)))
+    (_ orig id (fields ...) config ...)
        (rkt:identifier? #'id)
-       (rkt:if (rkt:not (config-has-name? #'(config ...)))
+       (? (rkt:not (config-has-name? #'(config ...)))
            (rkt:syntax/loc stx 
              (определить-структуру orig 
                id
@@ -910,15 +969,13 @@
              (определить-структуру orig 
                id
                (fields ...) 
-               config ...)))]
-      [(_ orig id . rest)
+               config ...)))
+    (_ orig id . rest)
        (rkt:identifier? #'id)
        (rkt:syntax/loc stx
-         (определить-структуру orig id . rest))]
-      [(_ thing . _) (rkt:raise-syntax-error #f
-                                         "expected an identifier for the structure type name"
-                                         stx
-                                         #'thing)]))
+         (определить-структуру orig id . rest))
+    (_ thing . _)
+      ошибка-синтаксиса #f "ожидается идентификатор структуры" stx #'thing
 
 (определение-синтаксиса (структура stx)
   (выбор-синтаксиса stx ()
