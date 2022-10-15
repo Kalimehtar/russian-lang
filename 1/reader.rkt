@@ -577,7 +577,7 @@
               (define l (прочитать-список-с-правилами #\}))
               (loop (datum->syntax
                      #f
-                     (list* (if (cons? (car (syntax->datum l))) 'отправить+ 'отправить) res l)))]
+                     (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)))]
              [else (заменить-логические res)]))]))
 
 (define (прочитать-блоки level)

@@ -1,4 +1,4 @@
 #lang setup/infotab
-(define version "0.4")
+(define version "0.41")
 (define collection 'multi)
-(define deps '("base" "scribble-lib" "racket-doc" "rackunit-lib"))
+(define deps '("base" "scribble-lib" "racket-doc" "rackunit-lib" "parser-tools-lib"))
