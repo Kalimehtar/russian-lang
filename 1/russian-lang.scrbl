@@ -512,8 +512,63 @@ cвязывает <идентификатор> с результатом выч�
            (sqrt 16))
 (eval:alts (unsyntax (elem (racket корень) (hspace 1) (racket -16)))
            (sqrt -16))
+(eval:alts (unsyntax (elem (racket +) (hspace 1) (racket 1) (hspace 1) (racket 2)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сложить")))
+           (+ 1 2))
+(eval:alts (unsyntax (elem (racket -) (hspace 1) (racket 2) (hspace 1) (racket 2)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- вычесть")))
+           (- 2 1))
+(eval:alts (unsyntax (elem (racket <) (hspace 1) (racket 2) (hspace 1) (racket 2)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сравнить")))
+           (eval:result (racketvalfont "ложь")))
+(eval:alts (unsyntax (elem (racket >=) (hspace 1) (racket 2) (hspace 1) (racket 2)))
+           (eval:result (racketvalfont "истина")))
+(eval:alts (unsyntax (elem (racket число?) (hspace 1) (racket "это не число")
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- распознать число")))
+           (eval:result (racketvalfont "ложь")))
+(eval:alts (unsyntax (elem (racket число?) (hspace 1) (racket 1)))
+           (eval:result (racketvalfont "истина")))
+(eval:alts (unsyntax (elem (racket ==) (hspace 1) (racket 6) (hspace 1) (racket "шесть")
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сравнить что угодно")))
+           (eval:result (racketvalfont "ложь")))
+(eval:alts (unsyntax (elem (racket ==) (hspace 1) (racket 6) (hspace 1) (racket 6)))
+           (eval:result (racketvalfont "истина")))
+(eval:alts (unsyntax (elem (racket ==) (hspace 1) (racket "шесть") (hspace 1) (racket "шесть")))
+           (eval:result (racketvalfont "истина")))]
 
-]
+Если функция является оператором, то её можно писать вторым словом.
+
+@examples[#:label "Примеры:"
+(eval:alts (unsyntax (elem (racket 1) (hspace 1) (racket +) (hspace 1) (racket 2)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сложить")))
+           (+ 1 2))
+(eval:alts (unsyntax (elem (racket 2) (hspace 1) (racket -) (hspace 1) (racket 1)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- вычесть")))
+           (- 2 1))
+(eval:alts (unsyntax (elem (racket 2) (hspace 1) (racket <) (hspace 1) (racket 1)
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сравнить")))
+           (eval:result (racketvalfont "ложь")))
+(eval:alts (unsyntax (elem (racket 2) (hspace 1) (racket >=) (hspace 1) (racket 1)))
+           (eval:result (racketvalfont "истина")))
+(eval:alts (unsyntax (elem (racket 6) (hspace 1) (racket ==) (hspace 1) (racket "шесть")
+                           (racketcommentfont "  -")
+                           (racketcommentfont "- сравнить что угодно")))
+           (eval:result (racketvalfont "ложь")))
+(eval:alts (unsyntax (elem (racket 6) (hspace 1) (racket ==) (hspace 1) (racket 6)))
+           (eval:result (racketvalfont "истина")))
+(eval:alts (unsyntax (elem (racket "шесть") (hspace 1) (racket ==) (hspace 1) (racket "шесть")))
+           (eval:result (racketvalfont "истина")))]
+
+@subsection[#:tag "conditionals expressions"]{Условные конструкции с @racket[если] и
+ операторами @racket[?], @racket[&&] и @racket[||]}
 
 
 
@@ -545,7 +600,31 @@ cвязывает <идентификатор> с результатом выч�
  @racketvalfont{истина} или @racketvalfont{ложь}, в противном случае возвращает
  @racketvalfont{ложь}.}
 
+@defproc[#:kind "функция" (== [параметр любой] ...)
+         логический?]{Возвращает @racketvalfont{истина}, если @racket[параметр]ы
+ равны. Списки и массивы считаются равными, если равны их элементы.}
+
+@subsection[#:tag "conditionals"]{Условия}
+
+@defform[#:kind "синтаксис" (? условие выражение-если-истина выражение-если-ложь)
+         #:contracts ([условие логический?])]{Если @racket[условие] истинно,
+ выполняет @racket[выражение-если-истина] иначе выполняет @racket[выражение-если-ложь].
+Возвращает результат выполненного выражения.
+
+При использовании как оператор не объединяет в одно выражение слова справа от себя.}
+
+@defform[#:kind "синтаксис" (&& выражение ...)]{Выполняет выражения слева направо, пока
+одно из них не вернёт ложь или они не закончатся.
+ Возвращает результат последнего выполненного выражения.}
+
+@defform[#:kind "синтаксис" (|| выражение ...)]{Выполняет выражения слева направо, пока
+одно из них не вернёт истину или они не закончатся.
+ Возвращает результат последнего выполненного выражения.}
+
 @subsection[#:tag "numbers"]{Числа}
+
+@defproc[#:kind "функция" (число? [параметр любой])
+         логический?]{Возвращает истину, если @racket[параметр] является числом.}
 
 @defproc[#:kind "функция" (корень [число число?])
          число?]{Возвращает главный (для положительных вещественных совпадает с арифметическим)
