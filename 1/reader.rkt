@@ -281,8 +281,10 @@
       (datum->syntax stx
                      (string->symbol (substring имя 1 (sub1 (string-length имя)))))))
 
+(define максимальный-приоритет 42)
+
 (define (приоритет-оператора оп)
-  (hash-ref приоритеты (syntax-e оп) (λ () (cons 42 'лево))))
+  (hash-ref приоритеты (syntax-e оп) (λ () (cons максимальный-приоритет 'лево))))
 
 (define (обработать-операторы stx)
   (define l (syntax-e stx))
@@ -302,7 +304,9 @@
        [(null? операторы) stx]
        [else
         (define-values (приоритет направление)
-          (let минимум ([операторы операторы] [приоритет 10] [направление #f])
+          (let минимум ([операторы операторы]
+                        [приоритет (add1 максимальный-приоритет)]
+                        [направление #f])
             (cond
              [(null? операторы) (values приоритет направление)]
              [else
@@ -638,9 +642,9 @@
         '(цикл/первый ((p points) #:когда (< tau (квадратные-скобки p 0)))
                       (:= bonus (+ bonus (квадратные-скобки p 2)))))
   (test "new(point%){move-x 5; move-y 7; move-x 12}"
-        '(отправить+ (new point%) (move-x 5) (move-y 7) (move-x 12)))
+        '(для-объекта (new point%) (move-x 5) (move-y 7) (move-x 12)))
   (test "new(point%){move-x 5}"
-        '(отправить (new point%) move-x 5))
+        '(вызвать-метод (new point%) move-x 5))
   (test "если 2 > 3 тогда 3 иначе 2"
         '(если ((> 2 3) 3) (иначе 2)))
   (test "если 2 > 3 тогда\n  a := 3\n  иначе\n  a := 2"
