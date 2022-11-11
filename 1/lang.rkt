@@ -70,13 +70,16 @@
   (синоним read прочитать)
   (синоним read-line прочитать-строку)
   (define (ошибка . т) (apply error т))
-  (define == equal?)
-  (define === eqv?)
+  (define (== а . т) (andmap (λ (б) (equal? б а)) т))
+  (define (=== а . т) (andmap (λ (б) (eqv? б а)) т))
   (define пусто (void))
-  (define (/= x y) (not (== x y)))
+  (define (/= а . т) (not (apply == а т)))
   (define (// x y) (quotient x y))
   (define (% x y) (remainder x y))
-  (define (не x) (not x))
+  (define не
+    (case-lambda
+      [(x) (not x)]
+      [(x . y) (not (apply x y))]))
   (синоним begin блок)
   (синоним begin-for-syntax при-компиляции)
   (синоним define-syntax определение-синтаксиса)
@@ -212,9 +215,6 @@
     [(_ x) (syntax/loc stx (provide (for-syntax x)))]
     [(_ x ...) (syntax/loc stx (begin (предоставлять-для-синтаксиса x) ...))]))
 
-(синоним struct структура)
-;; НАДО: так нельзя, надо определять новые функции,
-;;       иначе имя открыть-запись-в-строку остаётся #<procedure:open-output-string>
 (синоним open-output-string открыть-запись-в-строку)
 (синоним get-output-string получить-записанную-строку)
 (синоним write-string записать-строку)
@@ -227,7 +227,12 @@
     (заменить-по-словарю строка
                   '(("#t" . "истина")
                     ("#f" . "ложь")
-                    ("#<procedure:" . "#<функция:"))))
+                    ("procedure" . "функция")
+                    ("application: not a procedure;
+ expected a procedure that can be applied to arguments" .
+                     "вызов функции:
+ ожидалась функция, которую можно применить к аргументам")
+                    ("given:" . "получено:"))))
 
 (define (вывести что [порт (current-output-port)])
    (define строковый-порт (открыть-запись-в-строку))
@@ -249,43 +254,34 @@
    (newline порт))
 
 (define old-printer (global-port-print-handler))
-#;(define (printer что [порт (current-output-port)] [глубина 0])
-  (define (byte-rus s start end)
-    (string->bytes/utf-8
-     (русифицировать-вывод
-      (bytes->string/utf-8 (subbytes s start end)))))
-  (define russian-port
-    (make-output-port
-     'byte-upcase
-     ; This port is ready when the original is ready:
-     порт
-     ; Writing procedure:
-     (lambda (s* start end non-block? breakable?)
-       (parameterize ([global-port-print-handler old-printer])
-         (let ([s (byte-rus s* start end)])
-           (if non-block?
-               (write-bytes-avail* s порт)
-               (begin
-                 (display s порт)
-                 (bytes-length s*))))))
-     ; Close procedure — close original port:
-     (lambda () (close-output-port порт))
-     ; write-out-special
-     порт
-     ; Write event:
-     (and (port-writes-atomic? порт)
-          (lambda (s start end)
-            (write-bytes-avail-evt
-             (byte-rus s start end)
-             порт)))))
-  (old-printer что russian-port глубина))
-
-(define (printer что [порт (current-output-port)] [глубина 0])
-  (define строковый-порт (открыть-запись-в-строку))
-  (old-printer что строковый-порт глубина)
-  (записать-строку
-   (русифицировать-вывод (получить-записанную-строку строковый-порт))
-   порт))
+(define (byte-rus s start end)
+  (string->bytes/utf-8
+   (русифицировать-вывод
+    (bytes->string/utf-8 (subbytes s start end)))))
+(define (russian-port порт [преобразователь byte-rus])
+  (make-output-port
+   'byte-upcase
+   ; This port is ready when the original is ready:
+   порт
+   ; Writing procedure:
+   (lambda (s* start end non-block? breakable?)
+     (parameterize ([global-port-print-handler old-printer])
+       (let ([s (преобразователь s* start end)])
+         (if non-block?
+             (write-bytes-avail* s порт)
+             (begin
+               (display s порт)
+               (bytes-length s*))))))
+   ; Close procedure — close original port:
+   (lambda () (close-output-port порт))
+   ; write-out-special
+   порт
+   ; Write event:
+   (and (port-writes-atomic? порт)
+        (lambda (s start end)
+          (write-bytes-avail-evt
+           (преобразователь s start end)
+           порт)))))
 
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
@@ -339,7 +335,8 @@
        (quasisyntax/loc stx
          (#%module-begin
           (require (for-syntax 1/run-fast))
-          (global-port-print-handler printer)
+          (current-output-port (russian-port (current-output-port)))
+          (current-error-port (russian-port (current-error-port)))
           (begin-for-syntax (start '#,(syntax-source stx)))        
           new-body ...
           (begin-for-syntax (end)))))]))
