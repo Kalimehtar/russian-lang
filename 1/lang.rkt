@@ -232,7 +232,10 @@
  expected a procedure that can be applied to arguments" .
                      "вызов функции:
  ожидалась функция, которую можно применить к аргументам")
-                    ("given:" . "получено:"))))
+                    ("given:" . "получено:")
+                    ("undefined" . "не определено")
+                    ("cannot reference an identifier before its definition"
+                     . "не могу использовать идентификатор до его определения"))))
 
 (define (вывести что [порт (current-output-port)])
    (define строковый-порт (открыть-запись-в-строку))
@@ -259,29 +262,31 @@
    (русифицировать-вывод
     (bytes->string/utf-8 (subbytes s start end)))))
 (define (russian-port порт [преобразователь byte-rus])
-  (make-output-port
-   'byte-upcase
-   ; This port is ready when the original is ready:
-   порт
-   ; Writing procedure:
-   (lambda (s* start end non-block? breakable?)
-     (parameterize ([global-port-print-handler old-printer])
-       (let ([s (преобразователь s* start end)])
-         (if non-block?
-             (write-bytes-avail* s порт)
-             (begin
-               (display s порт)
-               (bytes-length s*))))))
-   ; Close procedure — close original port:
-   (lambda () (close-output-port порт))
-   ; write-out-special
-   порт
-   ; Write event:
-   (and (port-writes-atomic? порт)
-        (lambda (s start end)
-          (write-bytes-avail-evt
-           (преобразователь s start end)
-           порт)))))
+  (if (eq? (object-name порт) 'russian-port)
+      порт
+      (make-output-port
+       'russian-port
+       ; This port is ready when the original is ready:
+       порт
+       ; Writing procedure:
+       (lambda (s* start end non-block? breakable?)
+         (parameterize ([global-port-print-handler old-printer])
+           (let ([s (преобразователь s* start end)])
+             (if non-block?
+                 (write-bytes-avail* s порт)
+                 (begin
+                   (display s порт)
+                   (bytes-length s*))))))
+       ; Close procedure — close original port:
+       (lambda () (close-output-port порт))
+       ; write-out-special
+       порт
+       ; Write event:
+       (and (port-writes-atomic? порт)
+            (lambda (s start end)
+              (write-bytes-avail-evt
+               (преобразователь s start end)
+               порт))))))
 
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
@@ -326,7 +331,6 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        ;(global-port-print-handler printer)
         (begin-for-syntax (start '#,(syntax-source stx)))        
         body ...
         (begin-for-syntax (end))))]
