@@ -450,7 +450,8 @@
     [(a ... (~datum |.|) c)
      (datum->syntax x (append* (stx-map разобрать-список-с-одной-точкой #'(a ...))
                                (list (разобрать-список-с-одной-точкой #'c))))]
-    [(a ... (~datum |.|)) (datum->syntax x (stx-map разобрать-список-с-одной-точкой #'(a ... null)))]
+    [(a ... (~datum |.|))
+     (datum->syntax x (stx-map разобрать-список-с-одной-точкой #'(a ... пустой-список)))]
     [(a ... (~and dot (~datum |.|)) . b)
      (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
     [(a ...) (datum->syntax x (stx-map разобрать-список-с-одной-точкой x))]
@@ -606,7 +607,7 @@
   (test "1 (. +) 3" '(1 + 3))
   (test "1 . f . 2 + 2 . g . 3" '(+ (f 1 2) (g 2 3)))
   (test "1 + 3" '(+ 1 3))
-  (test ": 2 ." '(: 2 null))
+  (test ": 2 ." '(: 2 пустой-список))
   (check-equal? (with-input-from-string "1 2; 3" (λ () (list (my-read) (my-read)))) '((1 2) 3))
   (check-equal? (with-input-from-string "1 2; 3 4" (λ () (list (my-read) (my-read)))) '((1 2) (3 4)))
   (test "1 2\n 3 4;  \n \n    5 6\n  7 8"
