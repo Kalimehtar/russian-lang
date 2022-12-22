@@ -1,0 +1,72 @@
+#!1
+системная
+используется
+  с-префиксом rkt: racket
+  1/syn
+используется-для-синтаксиса
+  с-префиксом rkt: racket
+  с-префиксом rkt: syntax/stx
+  1/syn
+предоставлять блок при-компиляции определение-синтаксиса определение-синтаксического-правила \
+ синтаксис почти-синтаксис почти-синтаксис/место не-синтаксис-список не-синтаксис буквально \
+ не-буквально не-буквально-список выбор-синтаксиса почти-цитата
+
+синоним rkt:begin блок
+синоним rkt:begin-for-syntax при-компиляции
+синоним rkt:define-syntax определение-синтаксиса
+синоним rkt:define-syntax-rule определение-синтаксического-правила
+
+синоним rkt:syntax синтаксис
+синоним rkt:quasisyntax почти-синтаксис
+синоним rkt:quasisyntax/loc почти-синтаксис/место
+синоним rkt:unsyntax-splicing не-синтаксис-список
+синоним rkt:unsyntax не-синтаксис
+синоним rkt:quote буквально
+синоним rkt:unquote не-буквально
+синоним rkt:unquote-splicing не-буквально-список
+
+при-компиляции
+  синоним rkt:quasisyntax почти-синтаксис
+
+translate e =
+  dict = '(("bad syntax" . "ошибка синтаксиса"))
+  replace-dict str dict =
+    rkt:if (rkt:null? dict)
+      str
+      replace-dict (rkt:string-replace str (rkt:caar dict) (rkt:cdar dict)) (rkt:cdr dict)
+  rkt:cond
+    (rkt:exn:fail:syntax? e)
+      rkt:exn:fail:syntax
+        replace-dict (rkt:exn-message e) dict
+        rkt:exn-continuation-marks e
+        rkt:exn:fail:syntax-exprs e
+    rkt:else e
+
+определение-синтаксиса (выбор-синтаксиса stx)
+  rkt:syntax-case stx ()
+    (_ правила ...)
+      #'(rkt:with-handlers ([rkt:exn:fail:syntax? (rkt:lambda (e) (rkt:raise (translate e)))])
+          (rkt:syntax-case правила ...))
+
+определение-синтаксиса (почти-цитата stx)
+  rkt:syntax-case stx ()
+    (_ значение)
+      #`(rkt:quasiquote #,(заменять-рекурсивно #'значение))
+
+(rkt:define-for-syntax (заменять-рекурсивно синтаксис)
+  (rkt:syntax-case синтаксис ()
+    [(s ...)
+     (rkt:datum->syntax
+      синтаксис
+      (rkt:stx-map заменять-рекурсивно
+               (rkt:syntax-case синтаксис (не-буквально не-буквально-список)
+                 [(не-буквально f ...)
+                  #'(unquote f ...)]
+                 [(не-буквально-список f ...)
+                  #'(unquote-splicing f ...)]
+                 [_ синтаксис]))
+      синтаксис
+      синтаксис)]
+    [_ синтаксис]))
+
+

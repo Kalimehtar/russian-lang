@@ -1,6 +1,6 @@
 #lang racket/base
-(require racket/vector racket/string racket/class 1/syn
-         (for-syntax (except-in racket/base =) (except-in racket/match ==) 1/run-fast))
+(require  racket/string racket/class 1/syn
+         (for-syntax (except-in racket/base =) 1/run-fast))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin русифицировать-вывод old-printer #;printer)
          #%top-interaction #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn))
@@ -9,59 +9,13 @@
 
 (module syn racket/base
   (require syntax/parse (except-in racket/match ==)
-           1/syn racket/string racket/vector (for-syntax syntax/stx racket/base racket/syntax))
+           1/syn racket/vector (for-syntax racket/base racket/syntax))
   (provide (all-defined-out)
            syntax quasisyntax unsyntax unsyntax-splicing quote)
-  (define (translate e)
-    (define dict
-      '(("bad syntax" . "ошибка синтаксиса")))
-    (define (replace-dict str dict)
-      (if (null? dict)
-          str
-          (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
-    (cond
-      [(exn:fail:syntax? e)
-       (exn:fail:syntax (replace-dict (exn-message e) dict)
-                        (exn-continuation-marks e)
-                        (exn:fail:syntax-exprs e))]
-      [else e]))
-  (define-syntax (выбор-синтаксиса stx)
-    (syntax-case stx ()
-      [(_ правила ...)
-       #'(with-handlers ([exn:fail:syntax? (λ (e) (raise (translate e)))])
-           (syntax-case правила ...))]))
   (define-syntax (разобрать-синтаксис stx)
     (syntax-case stx ()
       [(_ правила ...)
        #'(syntax-parse правила ...)]))
-  (define-for-syntax (заменять-рекурсивно синтаксис)
-    (syntax-case синтаксис ()
-      [(s ...)
-       (datum->syntax
-        синтаксис
-        (stx-map заменять-рекурсивно
-                 (syntax-case синтаксис (не-цитируя не-цитируя-список)
-                   [(не-цитируя f ...)
-                    #'(unquote f ...)]
-                   [(не-цитируя-список f ...)
-                    #'(unquote-splicing f ...)]
-                   [_ синтаксис]))
-        синтаксис
-        синтаксис)]
-      [_ синтаксис]))
-  (define-syntax (квазицитата stx)
-    (syntax-case stx ()
-      [(_ значение)
-       #`(quasiquote #,(заменять-рекурсивно #'значение))]))
-  (синоним syntax синтаксис)
-  (синоним quasisyntax квазисинтаксис)
-  (синоним quasisyntax/loc квазисинтаксис/место)
-  (синоним unsyntax-splicing не-цитируя-список-синтаксиса)
-  (синоним unsyntax не-цитируя-синтаксис)
-  (синоним quote цитата)
-  (синоним unquote не-цитируя)
-  (синоним unquote-splicing не-цитируя-список)
-  (синоним lambda функция)
   (define-syntax-rule (|| выражение ...)
     (or выражение ...))
   (define-syntax-rule (&& выражение ...)

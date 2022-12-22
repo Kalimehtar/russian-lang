@@ -3,6 +3,9 @@
 используется
   с-префиксом rkt: racket/base
   с-префиксом mt: racket/match
+используется-для-синтаксиса
+  базовая/синтаксис
+  базовая/функция
 предоставлять массив массив? длина-массива
 
 mt:define-match-expander массив
@@ -14,7 +17,7 @@ mt:define-match-expander массив
     выбор-синтаксиса выражение ()
       (_ образец ...)
          #'(rkt:vector образец ...)
-      _ #'(rkt:procedure-rename rkt:vector (цитата массив))
+      _ #'(rkt:procedure-rename rkt:vector 'массив)
 
 массив? м =
   rkt:vector? м

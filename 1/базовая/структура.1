@@ -3,6 +3,8 @@
 используется
   базовая/список
   базовая/управление
+  базовая/синтаксис
+  базовая/функция
   racket/private/generic-methods
   с-префиксом rkt: racket/base
   с-префиксом rkt: racket/stxparam
@@ -11,6 +13,8 @@
   базовая/список
   базовая/управление
   базовая/массив
+  базовая/синтаксис
+  базовая/функция
 предоставлять структура
 
 при-компиляции
@@ -105,8 +109,7 @@
   идентификатор? = rkt:identifier?
   извлечь-из-синтаксиса = rkt:syntax-e
   ключевое? = rkt:keyword?
-
-определение-синтаксиса определить-структуру(full-stx)
+  
   make-field = список
   field-id = первый
   field-default-value сп =
@@ -128,16 +131,8 @@
             parts
       id
 
-  беда why kw where . alt =
-    ошибка-синтаксиса #f
-      rkt:format "в спецификации ~a ~a~a" why
-        rkt:string? kw ?
-          kw
-          rkt:syntax-e kw
-        where
-      stx
-      пустой? alt ? kw первый(alt)
 
+определение-синтаксиса определить-структуру(full-stx)
   проверить-выражения orig-n ps what =
     пусть loop (nps оставшиеся(ps); n orig-n)
       когда-не (rkt:zero? n)
@@ -159,7 +154,17 @@
   stx =
     выбор-синтаксиса full-stx ()
       (_ stx . _) #'stx
-                  
+
+  беда why kw where . alt =
+    ошибка-синтаксиса #f
+      rkt:format "в спецификации ~a ~a~a" why
+        rkt:string? kw ?
+          kw
+          rkt:syntax-e kw
+        where
+      stx
+      пустой? alt ? kw первый(alt)
+      
   -- Разбирает одно поле с последовательнстью ключевых полей спецификации
   parse-field f =
     выбор-синтаксиса f ()
@@ -290,9 +295,9 @@
               gen-id
           loop
             список* #'#:property
-              квазисинтаксис/место gen-id
+              почти-синтаксис/место gen-id
                 rkt:generic-property #,gen-id
-              квазисинтаксис/место gen-id
+              почти-синтаксис/место gen-id
                 rkt:generic-method-table #,gen-id #,@gen-defs
               args
             config
@@ -578,16 +583,16 @@
                        извлечь-из-синтаксиса stx
                        '#%top
        reflect-name-expr = reflect-name ?
-         выбор-синтаксиса reflect-name (quote цитата)
+         выбор-синтаксиса reflect-name (quote буквально)
            (quote id)
              идентификатор? #'id
              reflect-name
-           (цитата id)
+           (буквально id)
              идентификатор? #'id
              reflect-name
            иначе
-             quasisyntax $ check-reflection-name 'fm #,reflect-name
-         quasisyntax '#,id
+             rkt:quasisyntax $ check-reflection-name 'fm #,reflect-name
+         rkt:quasisyntax '#,id
 
        struct-name-size = rkt:string-length
          rkt:symbol->string
@@ -692,7 +697,7 @@
 
        run-time-defns =
         функция ()
-          квазисинтаксис/место stx
+          почти-синтаксис/место stx
             значения #,struct: #,make- #,id? #,@sels #,@sets =
               пусть значения
                 $ (struct: make- id? -ref -set!)
@@ -723,7 +728,7 @@
                       #,guard
                       '#,(? ctor-only? ctor-name id)
                 значения struct: make- id?
-                  не-цитируя-список-синтаксиса
+                  не-синтаксис-список
                     пусть loop
                       ;
                         i 0
@@ -736,7 +741,7 @@
                           loop
                             rkt:add1 i
                             оставшиеся fields
-                  не-цитируя-список-синтаксиса
+                  не-синтаксис-список
                     пусть loop
                       ;
                         i 0
@@ -836,7 +841,7 @@
                      пустой-список))
           body-only? ?
             define-syntax-body
-            квазисинтаксис/место stx
+            почти-синтаксис/место stx
               rkt:define-syntaxes (#,(? name-only? info-name id))
                 #,define-syntax-body
 

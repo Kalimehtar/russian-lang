@@ -442,11 +442,12 @@
 
 (define (extend-error lexeme start end in)
   (define next (peek-char-or-special in))
-  (if (or (char-whitespace? next)
-          (memq next
-                `(special
-                  #\" #\, #\' #\` #\( #\) #\[ #\] #\{ #\} #\;
-                  ,eof)))
+  (if (and (char? next)
+           (or (char-whitespace? next)
+               (memq next
+                     `(special
+                       #\" #\, #\' #\` #\( #\) #\[ #\] #\{ #\} #\;
+                       ,eof))))
       (ret lexeme 'error #f start end 'bad)
       (let-values (((rest end-pos) (get-chunk in)))
         (ret (string-append lexeme rest) 'error #f start end-pos 'bad))))
