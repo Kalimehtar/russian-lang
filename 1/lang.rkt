@@ -34,10 +34,6 @@
     (case-lambda
       [(x) (not x)]
       [(x . y) (not (apply x y))]))
-  (синоним begin блок)
-  (синоним begin-for-syntax при-компиляции)
-  (синоним define-syntax определение-синтаксиса)
-  (синоним define-syntax-rule определение-синтаксического-правила)
 
   ;; НАДО: сделать перевод языка шаблонов для match, match-define, match-define-values
   (define-syntax (= stx)
@@ -245,7 +241,6 @@
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
 (define (в-соответствии соответствие) (in-hash соответствие))
-(define (развернуть список) (reverse список))
 (define (есть-файл? ф) (file-exists? ф))
 
 (define (создать-соответствие
