@@ -268,10 +268,22 @@
 
 (define-for-syntax (add-headers stx body)
   (define base-srcloc (srcloc (syntax-source stx) 1 0 1 3))
+  (define (get-atom exprs)
+    (define datum (syntax-e exprs))
+    (cond
+      [(symbol? datum) exprs]
+      [(null? #f)]
+      [(list? datum)
+       (ormap get-atom datum)]
+      [else #f]))
+
+  (define orig (read-syntax #f (open-input-string "orig")))
+    
   (syntax-case body ()
-    [(expr1 expr ...)
+    [(expr ...)
      (begin
-       #`((используется #,(datum->syntax stx 'базовая base-srcloc #'orig)) expr1 expr ...))]
+       #`((используется #,(datum->syntax stx 'базовая base-srcloc (get-atom #'(expr ...))))
+          expr ...))]
     [_ body]))
 
 (define-syntax (module-begin stx)
