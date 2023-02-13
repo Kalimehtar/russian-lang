@@ -21,9 +21,14 @@
 синоним rkt:quasisyntax/loc почти-синтаксис/место
 синоним rkt:unsyntax-splicing не-синтаксис-список
 синоним rkt:unsyntax не-синтаксис
-синоним rkt:quote буквально
+-- синоним rkt:quote буквально
 синоним rkt:unquote не-буквально
 синоним rkt:unquote-splicing не-буквально-список
+
+определение-синтаксиса (буквально stx)
+  rkt:syntax-case stx ()
+    (_ значение)
+      #'(rkt:quote значение)
 
 при-компиляции
   синоним rkt:quasisyntax почти-синтаксис

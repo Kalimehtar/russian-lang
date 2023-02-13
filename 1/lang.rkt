@@ -68,6 +68,7 @@
       [(_ а б) #'(let () (set! а б) а)]))
   (define истина #t)
   (define ложь #f)
+  (define (булево? а) (boolean? а))
 
   (define (++ коллекция . коллекции)
    (cond
