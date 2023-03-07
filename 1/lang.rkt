@@ -1,9 +1,9 @@
 #lang racket/base
-(require  racket/string racket/class 1/syn
-         (for-syntax (except-in racket/base =) 1/run-fast))
+(require  racket/string racket/class 1/syn racket/contract
+         (for-syntax (except-in racket/base =) 1/run-fast racket/contract))
 (provide (rename-out [module-begin #%module-begin])
          (except-out (all-defined-out) module-begin русифицировать-вывод old-printer #;printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn))
+         #%top-interaction #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) ->)
 (provide (for-syntax #%app #%top #%datum + - / * < > <= >= =>
                      (all-from-out 'syn) λ ... _))
 
@@ -144,6 +144,9 @@
     [(_ (всё-из имя))
      (syntax-local-introduce
       (quasisyntax/loc stx (provide (all-from-out имя))))]
+    [(_ (с-контрактом выражение ...))
+     (syntax-local-introduce
+      (quasisyntax/loc stx (provide (contract-out выражение ...))))]
     [(_ x) (syntax/loc stx (provide x))]
     [(_ x ...) (syntax/loc stx (begin (предоставлять x) ...))]))
 
@@ -184,7 +187,10 @@
                      "вызов функции:
  ожидалась функция, которую можно применить к аргументам")
                     ("given:" . "получено:")
+                    ("expected:" . "ожидалось:")
+                    ("real?" . "вещественное?")
                     ("undefined" . "не определено")
+                    ("contract violation" . "нарушение контракта")
                     ("cannot reference an identifier before its definition"
                      . "не могу использовать идентификатор до его определения"))))
 
