@@ -1,9 +1,11 @@
 #lang racket/base
-(require  racket/string racket/class 1/syn racket/contract
+(require racket/class 1/syn racket/contract racket/splicing
          (for-syntax (except-in racket/base =) 1/run-fast racket/contract))
 (provide (rename-out [module-begin #%module-begin])
-         (except-out (all-defined-out) module-begin русифицировать-вывод old-printer #;printer)
-         #%top-interaction #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) ->)
+         #%top-interaction
+         (except-out (all-defined-out) module-begin)
+         splicing-parameterize
+         #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) ->)
 (provide (for-syntax #%app #%top #%datum + - / * < > <= >= =>
                      (all-from-out 'syn) λ ... _))
 
@@ -172,78 +174,15 @@
 (синоним open-output-string открыть-запись-в-строку)
 (синоним get-output-string получить-записанную-строку)
 (синоним write-string записать-строку)
-(define (русифицировать-вывод строка)
-   (define (заменить-по-словарю строка словарь)
-      (if (null? словарь)
-          строка
-          (заменить-по-словарю (string-replace строка
-                                               (caar словарь) (cdar словарь)) (cdr словарь))))
-    (заменить-по-словарю строка
-                  '(("#t" . "истина")
-                    ("#f" . "ложь")
-                    ("procedure" . "функция")
-                    ("application: not a procedure;
- expected a procedure that can be applied to arguments" .
-                     "вызов функции:
- ожидалась функция, которую можно применить к аргументам")
-                    ("given:" . "получено:")
-                    ("expected:" . "ожидалось:")
-                    ("real?" . "вещественное?")
-                    ("undefined" . "не определено")
-                    ("contract violation" . "нарушение контракта")
-                    ("cannot reference an identifier before its definition"
-                     . "не могу использовать идентификатор до его определения"))))
 
 (define (вывести что [порт (current-output-port)])
-   (define строковый-порт (открыть-запись-в-строку))
-   (display что строковый-порт)
-   (записать-строку
-     (русифицировать-вывод (получить-записанную-строку строковый-порт))
-     порт))
+   (display что порт))
 (define (вывести/пс что [порт (current-output-port)])
-   (вывести что порт)
-   (newline порт))
+   (displayln что порт))
 (define (записать что [порт (current-output-port)])
-   (define строковый-порт (открыть-запись-в-строку))
-   (write что строковый-порт)
-   (записать-строку
-     (русифицировать-вывод (получить-записанную-строку строковый-порт))
-     порт))
+   (write что порт))
 (define (записать/пс что [порт (current-output-port)])
-   (записать что порт)
-   (newline порт))
-
-(define old-printer (global-port-print-handler))
-(define (byte-rus s start end)
-  (string->bytes/utf-8
-   (русифицировать-вывод
-    (bytes->string/utf-8 (subbytes s start end)))))
-(define (russian-port порт [преобразователь byte-rus])
-  (if (eq? (object-name порт) 'russian-port)
-      порт
-      (make-output-port
-       'russian-port
-       ; This port is ready when the original is ready:
-       порт
-       ; Writing procedure:
-       (lambda (s* start end non-block? breakable?)
-         (parameterize ([global-port-print-handler old-printer])
-           (let ([s (преобразователь s* start end)])
-             (if non-block?
-                 (write-bytes-avail* s порт)
-                 (begin
-                   (display s порт)
-                   (bytes-length s*))))))
-       ; Close procedure — close original port:
-       (lambda () (close-output-port порт))
-       ; write-out-special
-       порт
-       ; Write event:
-       (and (port-writes-atomic? порт)
-            (lambda (s start end)
-              (write-bytes-avail-evt
-               (преобразователь s start end)
-               порт))))))
+   (writeln что порт))
 
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
@@ -307,8 +246,7 @@
        (quasisyntax/loc stx
          (#%module-begin
           (require (for-syntax 1/run-fast))
-          (current-output-port (russian-port (current-output-port)))
-          (current-error-port (russian-port (current-error-port)))
           (begin-for-syntax (start '#,(syntax-source stx)))        
           new-body ...
           (begin-for-syntax (end)))))]))
+
