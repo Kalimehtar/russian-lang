@@ -8,7 +8,8 @@
   rkt:raise ошибка
 
 вызвать-ошибку-аргумента имя ожидается значение =
+  метки = rkt:current-continuation-marks()
   вызвать-ошибку
     rkt:exn:fail:contract
       rkt:format "~a: нарушение контракта\n  ожидалось: ~a\n  получено: ~a" имя ожидается значение
-      rkt:current-continuation-marks()
+      метки

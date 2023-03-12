@@ -223,8 +223,6 @@
        (ormap get-atom datum)]
       [else #f]))
 
-  (define orig (read-syntax #f (open-input-string "orig")))
-    
   (syntax-case body ()
     [(expr ...)
      (begin
@@ -249,4 +247,3 @@
           (begin-for-syntax (start '#,(syntax-source stx)))        
           new-body ...
           (begin-for-syntax (end)))))]))
-

@@ -279,7 +279,9 @@
   (if (regexp-match шаблон-оператора имя)
       stx
       (datum->syntax stx
-                     (string->symbol (substring имя 1 (sub1 (string-length имя)))))))
+                     (string->symbol (substring имя 1 (sub1 (string-length имя))))
+                     stx
+                     stx)))
 
 (define максимальный-приоритет 42)
 
@@ -342,12 +344,14 @@
          stx
          (map применить-правила
               (append (list оператор)
-                      (if (список1? лево) лево (list (datum->syntax stx (reverse лево))))
+                      (if (список1? лево) лево (list (datum->syntax stx (reverse лево) stx stx)))
                       (if (or (список1? право)
                               (and (eq? '= (syntax-e оператор)) (описание-функции лево))
                               (eq? '? (syntax-e оператор)))
                           право
-                          (list (datum->syntax stx право))))))])]
+                          (list (datum->syntax stx право stx stx)))))
+         stx
+         stx)])]
     [else stx]))
 
 (define (разделить-по-оператору список лево приоритет)
@@ -376,12 +380,12 @@
     [(если a (~datum тогда) b ... (~datum иначе) c ...)
      #'(если (a b ...) (иначе c ...))]
     [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)))) b ...)
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x)) b ...)
              (иначе c ...))]
     [(если a (~datum тогда) b ...)
      #'(если (a b ...))]
     [(если a ... (~datum тогда) b ...)
-     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)))) b ...))]
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x)) b ...))]
     [_ x]))
 
 (define (учесть-буквально x)
@@ -420,7 +424,7 @@
   (syntax-parse x
     [(a ... (~datum $) b) #'(a ... b)]
     [(a ... (~datum $) b ...)
-     (применить-правила (datum->syntax x (syntax-e #`(a ... #,(применить-правила #'(b ...))))))]
+     (применить-правила (datum->syntax x (syntax-e #`(a ... #,(применить-правила #'(b ...)))) x x))]
     [_ x]))
 
 (define (применить-правила x)
@@ -439,7 +443,8 @@
     [_ y]))
 
 (define (применить-правила-к-списку список)
-  (define x (datum->syntax #f список))
+  (define source (if (null? список) #f (car список)))
+  (define x (datum->syntax source список source orig))
   (применить-правила
    (syntax-parse x
      [(a ... (~datum |;|) . b) (разделить-по-точке-с-запятой x)]
@@ -449,12 +454,13 @@
   (syntax-parse x
     [(a ... (~datum |.|) c)
      (datum->syntax x (append* (stx-map разобрать-список-с-одной-точкой #'(a ...))
-                               (list (разобрать-список-с-одной-точкой #'c))))]
+                               (list (разобрать-список-с-одной-точкой #'c)))
+                    x x)]
     [(a ... (~datum |.|))
-     (datum->syntax x (stx-map разобрать-список-с-одной-точкой #'(a ... пустой-список)))]
+     (datum->syntax x (stx-map разобрать-список-с-одной-точкой #'(a ... пустой-список)) x x)]
     [(a ... (~and dot (~datum |.|)) . b)
      (apply raise-read-error "неожиданная `.`" (build-source-location-list #'dot))]
-    [(a ...) (datum->syntax x (stx-map разобрать-список-с-одной-точкой x))]
+    [(a ...) (datum->syntax x (stx-map разобрать-список-с-одной-точкой x) x x)]
     [_ x]))
 
 (define current-source-name (make-parameter #f))
@@ -464,8 +470,8 @@
     [(syntax? x)
      (define sym (syntax-e x))
      (case sym
-       [(истина) (datum->syntax x #t)]
-       [(ложь) (datum->syntax x #f)]
+       [(истина) (datum->syntax x #t x x)]
+       [(ложь) (datum->syntax x #f x x)]
        [else x])]
     [else x]))
 
@@ -517,12 +523,15 @@
     [else
      (cons (прочитать-элемент) (прочитать-список end))]))
 
+(define orig (read-syntax #f (open-input-string "orig")))
+
 (define (прочитать-список-с-правилами последний-символ)
   (применить-правила-к-списку (прочитать-список последний-символ)))
 
 (define (прочитать-элемент)
   (define-values (c c2) (посмотреть-две-литеры))
   (define-values (ln col pos) (port-next-location (current-input-port)))
+  (define bpos (file-position (current-input-port)))
   (cond [(eof-object? c) c]
         [(and
           (литеры-равны? c #\.)
@@ -570,20 +579,25 @@
            (cond
              [(литеры-равны? следующий-символ #\()
               (read-char)
-              (loop (datum->syntax #f (cons res (прочитать-список-с-правилами #\)))))]
+              (loop (datum->syntax #f (cons res (прочитать-список-с-правилами #\)))
+                                   (vector (current-source-name) ln col pos
+                                           (- (file-position (current-input-port)) bpos))
+                                   res))]
              [(литеры-равны? следующий-символ #\[)
               (read-char)
               (loop (datum->syntax
-                     #f
+                     res
                      `(квадратные-скобки ,res
                                          ,(обработать-одноэлементный
-                                           (прочитать-список-с-правилами #\])))))]
+                                           (прочитать-список-с-правилами #\])))
+                     res res))]
              [(литеры-равны? следующий-символ #\{)
               (read-char)
               (define l (прочитать-список-с-правилами #\}))
               (loop (datum->syntax
-                     #f
-                     (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)))]
+                     res
+                     (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)
+                     res res))]
              [else (заменить-логические res)]))]))
 
 (define (прочитать-блоки level)

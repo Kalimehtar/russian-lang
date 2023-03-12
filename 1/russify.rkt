@@ -24,7 +24,6 @@
                     ("cannot reference an identifier before its definition"
                      . "не могу использовать идентификатор до его определения"))))
 
-
 (define old-printer (global-port-print-handler))
 (define (byte-rus s start end)
   (string->bytes/utf-8
@@ -56,4 +55,7 @@
             (lambda (s start end)
               (write-bytes-avail-evt
                (преобразователь s start end)
-               порт))))))
+               порт)))
+       (and (port-writes-atomic? порт)
+            (lambda (s)
+              (write s порт))))))
