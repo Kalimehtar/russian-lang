@@ -19,6 +19,15 @@
                     ("given:" . "получено:")
                     ("expected:" . "ожидалось:")
                     ("real?" . "вещественное?")
+                    ("backspace" . "забой")
+                    ("space" . "пробел")
+                    ("newline" . "перенос")
+                    ("return" . "возврат")
+                    ("nul" . "пусто")
+                    ("vtab" . "втаб")
+                    ("tab" . "таб")
+                    ("page" . "страница")
+                    ("rubout" . "удаление")
                     ("undefined" . "не определено")
                     ("contract violation" . "нарушение контракта")
                     ("cannot reference an identifier before its definition"
@@ -39,13 +48,12 @@
        порт
        ; Writing procedure:
        (lambda (s* start end non-block? breakable?)
-         (parameterize ([global-port-print-handler old-printer])
-           (let ([s (преобразователь s* start end)])
-             (if non-block?
-                 (write-bytes-avail* s порт)
-                 (begin
-                   (display s порт)
-                   (bytes-length s*))))))
+         (let ([s (преобразователь s* start end)])
+           (if non-block?
+               (write-bytes-avail* s порт)
+               (begin
+                 (display s порт)
+                 (bytes-length s*)))))
        ; Close procedure — close original port:
        (lambda () (close-output-port порт))
        ; write-out-special

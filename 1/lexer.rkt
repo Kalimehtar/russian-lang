@@ -40,6 +40,23 @@
   [x (char-set "xX")]
   [y (char-set "yY")]
   [z (char-set "zZ")]
+  [а (char-set "аА")]
+  [б (char-set "бБ")]
+  [в (char-set "вВ")]
+  [д (char-set "дД")]
+  [е (char-set "еЕ")]
+  [з (char-set "зЗ")]
+  [и (char-set "иИ")]
+  [й (char-set "йЙ")]
+  [л (char-set "лЛ")]
+  [н (char-set "нН")]
+  [о (char-set "оО")]
+  [п (char-set "пП")]
+  [р (char-set "рР")]
+  [с (char-set "сС")]
+  [т (char-set "тТ")]
+  [у (char-set "уУ")]
+  [ц (char-set "цЦ")]
 
   [digit (:/ "0" "9")]
   [digit2 (:/ "0" "1")]
@@ -70,7 +87,16 @@
                        (:: v t a b)
                        (:: p a g e)
                        (:: r e t u r n)
-                       (:: r u b o u t))]
+                       (:: r u b o u t)
+                       (:: п р о б е л)
+                       (:: п е р е н о с)
+                       (:: п у с т о)
+                       (:: з а б о й)
+                       (:: т а б)
+                       (:: в т а б)
+                       (:: с т р а н и ц а)
+                       (:: в о з в р а т)
+                       (:: у д а л е н и е))]
    
   [bad-char (:or "#\\"
                  (:: "#\\" (:>= 2 alphabetic))

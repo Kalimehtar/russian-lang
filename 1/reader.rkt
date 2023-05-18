@@ -442,9 +442,12 @@
     [(a ... b (~datum |.|) c (~datum |.|) d e ...) #'(c a ... b d e ...)]
     [_ y]))
 
-(define (применить-правила-к-списку список)
+(define (список->синтаксис список [преобразовать (λ (x) x)])
   (define source (if (null? список) #f (car список)))
-  (define x (datum->syntax source список source orig))
+  (datum->syntax source (преобразовать список) source orig))
+
+(define (применить-правила-к-списку список)
+  (define x (список->синтаксис список))
   (применить-правила
    (syntax-parse x
      [(a ... (~datum |;|) . b) (разделить-по-точке-с-запятой x)]
@@ -496,10 +499,8 @@
      (пропустить-незначащее!)
      (cons level null)]
     [else
-     (define-values (ln col pos) (port-next-location (current-input-port)))
      (define first (прочитать-элемент))
      (match-define (cons new-level rest) (прочитать-блок level))
-     (define-values (_1 _2 end-pos) (port-next-location (current-input-port)))
      (cons new-level (if (eof-object? first) first (cons first rest)))]))
 
 (define (прочитать-цитату qt)
@@ -528,77 +529,128 @@
 (define (прочитать-список-с-правилами последний-символ)
   (применить-правила-к-списку (прочитать-список последний-символ)))
 
+(define (прочитать-литеру)
+  (define сч 2)
+  (define строка-поиска (make-string 9 #\space))  
+  (let loop ([сч 2])
+    (define литера (peek-char-or-special (current-input-port) (bytes-length
+                                                               (string->bytes/utf-8
+                                                                (substring строка-поиска 0 сч)))))
+    (when (and (char? литера) (char-alphabetic? литера))
+      (string-set! строка-поиска (- сч 2) литера)
+      (when (< сч 11) (loop (add1 сч)))))
+
+  (let loop ([литеры '(("перенос " . #\newline)
+                       ("пусто " . #\nul)
+                       ("забой " . #\backspace)
+                       ("таб " . #\tab)
+                       ("страница . " #\page)
+                       ("возврат " . #\return)
+                       ("втаб " . #\vtab)
+                       ("пробел " . #\space)
+                       ("удаление " . #\rubout))])
+    (cond
+      [(null? литеры) (read-syntax (current-source-name))]
+      [else
+       (match-define (cons поиск литера) (car литеры))
+       (cond
+         [(string-prefix? строка-поиска поиск)
+          ; в строке лишний пробел, но не хватает #\
+          (for ([сч (add1 (string-length поиск))]) (read-char))
+          литера]
+         [else (loop (cdr литеры))])])))
+  
 (define (прочитать-элемент)
   (define-values (c c2) (посмотреть-две-литеры))
   (define-values (ln col pos) (port-next-location (current-input-port)))
-  (define bpos (file-position (current-input-port)))
-  (cond [(eof-object? c) c]
-        [(and
-          (литеры-равны? c #\.)
-          (let ([next c2])
-            (or (eof-object? next)
-                (литеры-равны? next #\newline)
-                (литеры-равны? next #\space)
-                (литеры-равны? next #\tab))))
-         (read-char)
-         (datum->syntax #f '|.| (vector (current-source-name) ln col pos 1))]
-        [(литеры-равны? c #\;)
-         (read-char)
-         (datum->syntax #f '|;| (vector (current-source-name) ln col pos 1))]
-        [(литеры-равны? c #\`)
-         (read-char)
-         (прочитать-цитату 'почти-буквально)]
-        [(литеры-равны? c #\')
-         (read-char)
-         (прочитать-цитату 'буквально)]
-        [(литеры-равны? c #\,)
-         (read-char)
+  (define (позиция)
+    (define-values (_ __ end-pos) (port-next-location (current-input-port)))
+    (vector (current-source-name) ln col pos
+            (- end-pos pos)))
+  (define элемент
+    (cond
+      [(eof-object? c) c]
+      [(and
+        (литеры-равны? c #\.)
+        (or (eof-object? c2)
+            (литеры-равны? c2 #\newline)
+            (литеры-равны? c2 #\space)
+            (литеры-равны? c2 #\tab)))
+       (read-char)
+       '|.|]
+      [(литеры-равны? c #\;)
+       (read-char)
+       '|;|]
+      [(литеры-равны? c #\`)
+       (read-char)
+       (прочитать-цитату 'почти-буквально)]
+      [(литеры-равны? c #\')
+       (read-char)
+       (прочитать-цитату 'буквально)]
+      [(литеры-равны? c #\,)
+       (read-char)
+       (cond
+         [(eqv? c2 #\@)
+          (read-char)
+          (прочитать-цитату 'не-буквально-список)]
+         [else (прочитать-цитату 'не-буквально)])]
+      [(литеры-равны? c #\#)         
+       (cond
+         [(литеры-равны? c2 #\`)
+          (read-char) (read-char)
+          (прочитать-цитату 'почти-синтаксис)]
+         [(литеры-равны? c2 #\')
+          (read-char) (read-char)
+          (прочитать-цитату 'синтаксис)]
+         [(литеры-равны? c2 #\()
+          (read-char) (read-char)
+          (список->синтаксис (прочитать-список #\)) list->vector)]
+         [(литеры-равны? c2 #\\)
+          (прочитать-литеру)]
+         [else (read-syntax (current-source-name))])]
+      [else
+       (define res
          (cond
-           [(eqv? c2 #\@)
+           [(литеры-равны? c #\()
             (read-char)
-            (прочитать-цитату 'не-буквально-список)]
-           [else (прочитать-цитату 'не-буквально)])]
-        [(and (литеры-равны? c #\#) (литеры-равны? c2 #\`))
-         (read-char) (read-char)
-         (прочитать-цитату 'почти-синтаксис)]
-        [else
-         (define res
-           (cond
-             [(литеры-равны? c #\()
-              (read-char)
-              (прочитать-список-с-правилами #\))]
-             [(литеры-равны? c #\[)
-              (read-char)
-              (прочитать-список-с-правилами #\])]
-             [(литеры-равны? c #\{)
-              (read-char)
-              (прочитать-список-с-правилами #\})]
-             [else (read-syntax (current-source-name))]))
-         (let loop ([res res])
-           (define следующий-символ (peek-char-or-special))
-           (cond
-             [(литеры-равны? следующий-символ #\()
-              (read-char)
-              (loop (datum->syntax #f (cons res (прочитать-список-с-правилами #\)))
-                                   (vector (current-source-name) ln col pos
-                                           (- (file-position (current-input-port)) bpos))
-                                   res))]
-             [(литеры-равны? следующий-символ #\[)
-              (read-char)
-              (loop (datum->syntax
-                     res
-                     `(квадратные-скобки ,res
-                                         ,(обработать-одноэлементный
-                                           (прочитать-список-с-правилами #\])))
-                     res res))]
-             [(литеры-равны? следующий-символ #\{)
-              (read-char)
-              (define l (прочитать-список-с-правилами #\}))
-              (loop (datum->syntax
-                     res
-                     (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)
-                     res res))]
-             [else (заменить-логические res)]))]))
+            (прочитать-список-с-правилами #\))]
+           [(литеры-равны? c #\[)
+            (read-char)
+            (прочитать-список-с-правилами #\])]
+           [(литеры-равны? c #\{)
+            (read-char)
+            (прочитать-список-с-правилами #\})]
+           [else (read-syntax (current-source-name))]))
+       (let loop ([res res])
+         (define следующий-символ (peek-char-or-special))
+         (cond
+           [(литеры-равны? следующий-символ #\()
+            (read-char)
+            (loop (datum->syntax #f (cons res (прочитать-список-с-правилами #\)))
+                                 (позиция)
+                                 res))]
+           [(литеры-равны? следующий-символ #\[)
+            (read-char)
+            (loop (datum->syntax
+                   res
+                   `(квадратные-скобки ,res
+                                       ,(обработать-одноэлементный
+                                         (прочитать-список-с-правилами #\])))
+                   (позиция)
+                   res))]
+           [(литеры-равны? следующий-символ #\{)
+            (read-char)
+            (define l (прочитать-список-с-правилами #\}))
+            (loop (datum->syntax
+                   res
+                   (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)
+                   (позиция)
+                   res))]
+           [else (заменить-логические res)]))]))
+  (cond
+    [(eof-object? элемент) элемент]
+    [(syntax? элемент) (datum->syntax элемент (syntax-e элемент) (позиция) элемент)]
+    [else (datum->syntax #f элемент (позиция))]))
 
 (define (прочитать-блоки level)
   ;; indent -> (listof syntax?)

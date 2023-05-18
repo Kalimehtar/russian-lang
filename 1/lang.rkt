@@ -13,7 +13,7 @@
   (require syntax/parse (except-in racket/match ==)
            1/syn racket/vector (for-syntax racket/base racket/syntax))
   (provide (all-defined-out)
-           syntax quasisyntax unsyntax unsyntax-splicing quote)
+           syntax)
   (define-syntax (разобрать-синтаксис stx)
     (syntax-case stx ()
       [(_ правила ...)

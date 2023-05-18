@@ -15,7 +15,7 @@
   базовая/массив
   базовая/синтаксис
   базовая/функция
-предоставлять структура
+-- предоставлять структура
 
 при-компиляции
   значения struct:struct-field-info make-struct-field-info \
@@ -110,7 +110,10 @@
   извлечь-из-синтаксиса = rkt:syntax-e
   ключевое? = rkt:keyword?
   
-  make-field = список
+  -- make-field = список
+  make-field id def aut? mut? =
+    список id def aut? mut?
+  
   field-id = первый
   field-default-value сп =
     первый $ оставшиеся сп
