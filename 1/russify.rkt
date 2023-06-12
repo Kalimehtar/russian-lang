@@ -31,7 +31,15 @@
                     ("undefined" . "не определено")
                     ("contract violation" . "нарушение контракта")
                     ("cannot reference an identifier before its definition"
-                     . "не могу использовать идентификатор до его определения"))))
+                     . "не могу использовать идентификатор до его определения")
+                    ("define-values: assignment disallowed" . "=: переопределение запрещено")
+                    ("cannot re-define a constant" . "нельзя переопределять константу")
+                    ("cannot modify a constant" . "нельзя изменять константу")
+                    ("constant:" . "константа:")
+                    ("in module:" . "в модуле:")
+                    ("'anonymous-module" . "'безымянный-модуль")
+                    ("module: identifier already defined"
+                     . "модуль: идентификатор уже определён"))))
 
 (define old-printer (global-port-print-handler))
 (define (byte-rus s start end)
