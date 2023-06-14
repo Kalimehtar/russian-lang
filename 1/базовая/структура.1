@@ -15,7 +15,7 @@
   базовая/массив
   базовая/синтаксис
   базовая/функция
--- предоставлять структура
+предоставлять структура
 
 при-компиляции
   значения struct:struct-field-info make-struct-field-info \
@@ -805,14 +805,14 @@
                               пустой-список)))
                   (список
                    #,@(rkt:reverse
-                       (пусть loop ([fields fields][sets sets])
+                       (пусть loop ((fields fields) (sets sets))
                          (если
-                           [(пустой? fields) пустой-список]
-                           [(не (|| mutable? (field-mutable? (первый fields))))
-                            (пара #f (loop (оставшиеся fields) sets))]
-                           [иначе
+                           ((пустой? fields) пустой-список)
+                           ((не (|| mutable? (field-mutable? (первый fields))))
+                            (пара #f (loop (оставшиеся fields) sets)))
+                           (иначе
                             (пара (protect (первый sets))
-                                  (loop (оставшиеся fields) (оставшиеся sets)))])))
+                                  (loop (оставшиеся fields) (оставшиеся sets)))))))
                    #,@(? super-info
                           (отобразить protect (rkt:list-ref super-info 4))
                           (? super-expr
