@@ -3,4 +3,4 @@
 
 Programming language based on russian language
 
-Документация по адресу: https://docs.racket-lang.org/russian-lang/
+Документация по адресу: <https://docs.racket-lang.org/russian-lang/>
