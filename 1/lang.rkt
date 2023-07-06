@@ -28,7 +28,6 @@
   (define (ошибка . т) (apply error т))
   (define (== а . т) (andmap (λ (б) (equal? б а)) т))
   (define (=== а . т) (andmap (λ (б) (eqv? б а)) т))
-  (define пусто (void))
   (define (/= а . т) (not (apply == а т)))
   (define (// x y) (quotient x y))
   (define (% x y) (remainder x y))
