@@ -52,9 +52,9 @@
   (define (значения . a) (apply values a))
 
   (define-syntax (:= stx)
-    (syntax-case stx (значения)
+    (syntax-case stx (значения квадратные-скобки)
       [(_ (значения . а) б) #'(let () (set!-values а б) (values . а))]
-      [(_ объект[поле] значение)
+      [(_ (квадратные-скобки объект поле) значение)
        #'(let ()
            (cond
              [(vector? объект) (vector-set! объект поле значение)]
@@ -170,23 +170,9 @@
     [(_ x) (syntax/loc stx (provide (for-syntax x)))]
     [(_ x ...) (syntax/loc stx (begin (предоставлять-для-синтаксиса x) ...))]))
 
-(синоним open-output-string открыть-запись-в-строку)
-(синоним get-output-string получить-записанную-строку)
-(синоним write-string записать-строку)
-
-(define (вывести что [порт (current-output-port)])
-   (display что порт))
-(define (вывести/пс что [порт (current-output-port)])
-   (displayln что порт))
-(define (записать что [порт (current-output-port)])
-   (write что порт))
-(define (записать/пс что [порт (current-output-port)])
-   (writeln что порт))
-
 (define (аргументы-командной-строки) (current-command-line-arguments))
 (define (в-строках порт) (in-lines порт))
 (define (в-соответствии соответствие) (in-hash соответствие))
-(define (есть-файл? ф) (file-exists? ф))
 
 (define (создать-соответствие
          #:глубокое-сравнение (глубокое #f)
