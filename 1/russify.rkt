@@ -36,6 +36,8 @@
                     ("valid range:" . "границы массива:")
                     ("index:" . "позиция:")
                     ("vector:" . "массив:")
+                    ("context" . "окружение")
+                    ("body of" . "тело")
                     ("contract violation" . "нарушение контракта")
                     ("cannot reference an identifier before its definition"
                      . "не могу использовать идентификатор до его определения")
