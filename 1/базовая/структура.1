@@ -8,6 +8,7 @@
   racket/private/generic-methods
   с-префиксом rkt: racket/base
   с-префиксом rkt: racket/stxparam
+  1/syn
 используется-для-синтаксиса racket/private/struct-info racket/private/procedure-alias
   с-префиксом rkt: racket/base
   базовая/список
@@ -15,7 +16,9 @@
   базовая/массив
   базовая/синтаксис
   базовая/функция
-предоставлять структура
+предоставлять структура копия-структуры
+
+синоним rkt:struct-copy копия-структуры
 
 при-компиляции
   значения struct:struct-field-info make-struct-field-info \

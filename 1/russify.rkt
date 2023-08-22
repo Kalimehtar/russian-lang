@@ -28,7 +28,12 @@
                     ("tab" . "таб")
                     ("page" . "страница")
                     ("rubout" . "удаление")
-                    ("undefined" . "не определено")
+                    ("vector-ref:" . "элемент-массива:")
+                    ("index is out of range" . "позиция за границами")
+                    ("index:" . "позиция:")
+                    ("valid range:" . "границы массива:")
+                    ("index:" . "позиция:")
+                    ("vector:" . "массив:")
                     ("contract violation" . "нарушение контракта")
                     ("cannot reference an identifier before its definition"
                      . "не могу использовать идентификатор до его определения")
