@@ -4,5 +4,5 @@
   (lambda (key default)
     (case key
       [(configure-runtime)
-       '(#(1/runtime-config configure #f))]
+       '(#(1/private/runtime-config runtime-config! #f))]
       [else default])))
