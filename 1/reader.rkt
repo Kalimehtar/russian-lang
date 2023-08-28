@@ -86,22 +86,28 @@
       (values литера1
               (peek-char-or-special (current-input-port) 1))))
 
-(define (прочитать-отступ!)
+(define (прочитать-отступ! [без-переносов #t])
   (define indent (прочитать-пробелы!))
-  (define-values (c c2) (посмотреть-две-литеры))
-  (cond [(eof-object? c) ""]
-        [(комментарий? c c2)
-         (пропустить-до-конца-строки!)
-         (прочитать-отступ!)]
-        [(блочный-комментарий? c c2)
-         (пропустить-блочный-комментарий!)
-         (прочитать-отступ!)]
-        [(eqv? c #\newline)
-         (read-char)
-         (прочитать-отступ!)]
-        [else
-         (when (литеры-равны? c #\;) (read-char))
-         (list->string indent)]))
+  (define c (peek-char-or-special))
+  (cond
+    [(eof-object? c) ""]
+    [(eqv? c #\newline)
+     (read-char)
+     (if без-переносов
+         (прочитать-отступ!)
+         "")]
+    [else
+     (define c2 (peek-char-or-special (current-input-port) 1))
+     (cond
+       [(комментарий? c c2)
+        (пропустить-до-конца-строки!)
+        (прочитать-отступ! без-переносов)]
+       [(блочный-комментарий? c c2)
+        (пропустить-блочный-комментарий!)
+        (прочитать-отступ! без-переносов)]
+       [else
+        (when (литеры-равны? c #\;) (read-char))
+        (list->string indent)])]))
 
 ;; отступ-увеличен? новый старый - отступ `новый` больше отступа `старый` и их начала совпадают
 ;; : строка? строка? -> логический?
@@ -496,7 +502,7 @@
      (read-char) (read-char) (прочитать-блок level)]
     [(литеры-равны? c #\newline)
      (read-char)     
-     (define next-level (прочитать-отступ!))
+     (define next-level (прочитать-отступ! (not (terminal-port? (current-input-port)))))
      (if (отступ-увеличен? next-level level)
          (прочитать-блоки next-level)
          (cons next-level null))]

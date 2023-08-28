@@ -12,12 +12,13 @@
   (current-interaction-info '#((submod 1/main reader)
                                get-interaction-info
                                #f))
+  (define old-output (current-output-port))
   (current-output-port (russian-port (current-output-port)))
   (current-error-port (russian-port (current-error-port)))
   (current-read-interaction 
     (lambda (src in)
       (when (terminal-port? in)
-        (flush-output (current-output-port)))
+        (flush-output old-output))
       (my-read-syntax src in))))
 
 (define (runtime-config! _) (install-runtime-config!))
