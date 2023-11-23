@@ -71,8 +71,7 @@
   =
   rkt:write-string строка порт
 
-текущее-место = функция-выбора
-  ()
-    rkt:current-locale()
-  (место)
-    rkt:current-locale место
+текущее-место =
+  rkt:make-derived-parameter rkt:current-locale
+    функция (х) х
+    функция (х) х

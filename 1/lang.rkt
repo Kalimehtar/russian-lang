@@ -1,5 +1,6 @@
 #lang racket/base
 (require racket/class 1/syn racket/contract racket/splicing
+         
          (for-syntax (except-in racket/base =) 1/run-fast racket/contract))
 (provide (rename-out [module-begin #%module-begin])
          #%top-interaction
@@ -10,7 +11,7 @@
                      (all-from-out 'syn) λ ... _))
 
 (module syn racket/base
-  (require syntax/parse (except-in racket/match ==)
+  (require syntax/parse (except-in racket/match ==) racket/sequence
            1/syn racket/vector (for-syntax racket/base racket/syntax))
   (provide (all-defined-out)
            syntax)
@@ -60,6 +61,7 @@
              [(vector? объект) (vector-set! объект поле значение)]
              [(hash? объект) (hash-set! объект поле значение)]
              [(string? объект) (string-set! объект поле значение)]
+             [(bytes? объект) (bytes-set! объект поле значение)]
              [else
               (raise-syntax-error 'квадратные-скобки
                                   "У объекта ~a нет доступа к полям через квадратные скобки"
@@ -75,6 +77,7 @@
    (cond
      [(list? коллекция) (apply append коллекция коллекции)]
      [(string? коллекция) (apply string-append коллекция коллекции)]
+     [(bytes? коллекция) (apply bytes-append коллекция коллекции)]
      [(vector? коллекция) (apply vector-append коллекция коллекции)]))
 
   (define (квадратные-скобки объект поле)
@@ -83,6 +86,8 @@
       [(vector? объект) (vector-ref объект поле)]
       [(hash? объект) (hash-ref объект поле #f)]
       [(string? объект) (string-ref объект поле)]
+      [(bytes? объект) (bytes-ref объект поле)]
+      [(sequence? объект) (sequence-ref объект поле)]
       [else (raise-syntax-error 'квадратные-скобки
                                 "У объекта ~a нет доступа к полям через квадратные скобки"
                                 объект)])))

@@ -8,47 +8,50 @@
           строка
           (заменить-по-словарю (string-replace строка
                                                (caar словарь) (cdar словарь)) (cdr словарь))))
-    (заменить-по-словарю строка
-                  '(("#t" . "истина")
-                    ("#f" . "ложь")
-                    ("procedure" . "функция")
-                    ("application: not a procedure;
+    (заменить-по-словарю
+     строка
+     '(("#t" . "истина")
+       ("#f" . "ложь")
+       ("procedure" . "функция")
+       ("application: not a procedure;
  expected a procedure that can be applied to arguments" .
-                     "вызов функции:
+                                                        "вызов функции:
  ожидалась функция, которую можно применить к аргументам")
-                    ("mutable-string" . "изменяемая-строка")
-                    ("given:" . "получено:")
-                    ("expected:" . "ожидалось:")
-                    ("real?" . "вещественное?")
-                    ("#\\backspace" . "#\\забой")
-                    ("#\\space" . "#\\пробел")
-                    ("#\\newline" . "#\\перенос")
-                    ("#\\return" . "#\\возврат")
-                    ("#\\nul" . "#\\пусто")
-                    ("#\\vtab" . "#\\втаб")
-                    ("#\\tab" . "#\\таб")
-                    ("#\\page" . "#\\страница")
-                    ("#\\rubout" . "#\\удаление")
-                    ("string-set!" . "установить-элемент-строки!")
-                    ("vector-ref:" . "элемент-массива:")
-                    ("index is out of range" . "позиция за границами")
-                    ("index:" . "позиция:")
-                    ("valid range:" . "границы массива:")
-                    ("index:" . "позиция:")
-                    ("vector:" . "массив:")
-                    ("context" . "окружение")
-                    ("body of" . "тело")
-                    ("contract violation" . "нарушение контракта")
-                    ("cannot reference an identifier before its definition"
-                     . "не могу использовать идентификатор до его определения")
-                    ("define-values: assignment disallowed" . "=: переопределение запрещено")
-                    ("cannot re-define a constant" . "нельзя переопределять константу")
-                    ("cannot modify a constant" . "нельзя изменять константу")
-                    ("constant:" . "константа:")
-                    ("in module:" . "в модуле:")
-                    ("'anonymous-module" . "'безымянный-модуль")
-                    ("module: identifier already defined"
-                     . "модуль: идентификатор уже определён"))))
+       ("mutable-string" . "изменяемая-строка")
+       ("given:" . "получено:")
+       ("expected:" . "ожидалось:")
+       ("real?" . "вещественное?")
+       ("#\\backspace" . "#\\забой")
+       ("#\\space" . "#\\пробел")
+       ("#\\newline" . "#\\перенос")
+       ("#\\return" . "#\\возврат")
+       ("#\\nul" . "#\\пусто")
+       ("#\\vtab" . "#\\втаб")
+       ("#\\tab" . "#\\таб")
+       ("#\\page" . "#\\страница")
+       ("#\\rubout" . "#\\удаление")
+       ("string-set!" . "установить-элемент-строки!")
+       ("vector-ref:" . "элемент-массива:")
+       ("index is out of range" . "позиция за границами")
+       ("index:" . "позиция:")
+       ("valid range:" . "границы массива:")
+       ("index:" . "позиция:")
+       ("vector:" . "массив:")
+       ("context" . "окружение")
+       ("body of" . "тело")
+       ("contract violation" . "нарушение контракта")
+       ("cannot reference an identifier before its definition"
+        . "не могу использовать идентификатор до его определения")
+       ("define-values: assignment disallowed" . "=: переопределение запрещено")
+       ("cannot re-define a constant" . "нельзя переопределять константу")
+       ("cannot modify a constant" . "нельзя изменять константу")
+       ("constant:" . "константа:")
+       ("bytes->string/locale: byte string is not a valid encoding for the current locale"
+        . "байты->строка/местные: строка байтов не является правильной в местной кодировке")
+       ("in module:" . "в модуле:")
+       ("'anonymous-module" . "'безымянный-модуль")
+       ("module: identifier already defined"
+        . "модуль: идентификатор уже определён"))))
 
 (define old-printer (global-port-print-handler))
 (define (byte-rus s start end)
@@ -65,6 +68,7 @@
        порт
        ; Writing procedure:
        (lambda (s* start end non-block? breakable?)
+         (if (= start end) (flush-output порт) (void))
          (let ([s (преобразователь s* start end)])
            (if non-block?
                (write-bytes-avail* s порт)
