@@ -46,6 +46,7 @@
        ("cannot re-define a constant" . "нельзя переопределять константу")
        ("cannot modify a constant" . "нельзя изменять константу")
        ("constant:" . "константа:")
+       ("byte string:" . "строка байтов:")
        ("bytes->string/locale: byte string is not a valid encoding for the current locale"
         . "байты->строка/местные: строка байтов не является правильной в местной кодировке")
        ("in module:" . "в модуле:")

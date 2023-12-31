@@ -25,7 +25,6 @@
     (and выражение ...))
 
   (синоним read прочитать)
-  (синоним read-line прочитать-строку)
   (define (ошибка . т) (apply error т))
   (define (== а . т) (andmap (λ (б) (equal? б а)) т))
   (define (=== а . т) (andmap (λ (б) (eqv? б а)) т))
