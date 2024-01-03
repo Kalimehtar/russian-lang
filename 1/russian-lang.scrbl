@@ -2134,8 +2134,8 @@ cвязывает <идентификатор> с результатом выч�
    (unsyntax (elem (racket элемент-байтов #"Elbrus" 0)))
    (bytes-ref #"Elbrus" 0))
   (eval:alts
-   (unsyntax (elem (racket #"Elbrus" (racketparenfont "[") (racketvalfont "0")
-                           (racketparenfont "]"))))
+   (unsyntax (elem (racket #"Elbrus") (racketparenfont "[") (racketvalfont "0")
+                   (racketparenfont "]")))
    (bytes-ref #"Elbrus" 0))
   (eval:alts
    (unsyntax (elem (racket новые-байты 3 65)))
