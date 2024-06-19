@@ -179,7 +179,7 @@
      (match-define (cons level stx) (прочитать-блок-с-правилами ""))
      (cond
        [(and (syntax? stx) (eq? (syntax-e stx) '|.|))
-        (raise-read-error "неожиданная `.`" (current-source-name) ln col pos 1)]
+        (datum->syntax stx 'пустой-список stx stx)]
        [(директива-оператор? stx) => (λ (parsed)                             
                                        (apply оператор! (syntax->datum parsed))
                                        (чтение-кода-с-отступами))]
