@@ -18,20 +18,21 @@
 ;;                    Raises (calls as an exception) given argument.
 ;; : any/c -> exception call
 (define (перевести-ошибку ошибка)
-  (define dict
+  (define словарь
     '(("unexpected" . "неожиданно встретилась")
       ("expected" . "ожидалась")
+      ("a closing" . "закрывающая")
       ("to close preceding" . "для закрытия предшествующей")
       ("found instead" . "вместо этого встретилась")
       ("read-syntax" . "чтение-синтаксиса")))
-  (define (replace-dict str dict)
+  (define (заменить-по-словарю str dict)
     (if (null? dict)
         str
-        (replace-dict (string-replace str (caar dict) (cdar dict)) (cdr dict))))
+        (заменить-по-словарю (string-replace str (caar dict) (cdar dict)) (cdr dict))))
   (raise
    (cond
      [(exn:fail:read? ошибка) (exn:fail:read
-                               (replace-dict (exn-message ошибка) dict)
+                               (заменить-по-словарю (exn-message ошибка) словарь)
                                (exn-continuation-marks ошибка) (exn:fail:read-srclocs ошибка))]
      [else ошибка])))
 
@@ -571,7 +572,32 @@
           (for ([сч (add1 (string-length поиск))]) (read-char))
           литера]
          [else (loop (cdr литеры))])])))
-  
+
+(define (прочитать-строку уровень результат [была-черта #f])
+  (define литера (read-char-or-special))
+  (cond
+    [(eof-object? литера) (raise (exn:fail:read:eof
+                                  "неожиданный конец файла"
+                                  (current-continuation-marks)))]
+    [(литеры-равны? литера #\«)
+     (прочитать-строку (if была-черта уровень (add1 уровень)) (cons литера результат))]
+    [(литеры-равны? литера #\»)
+     (cond
+       [была-черта (прочитать-строку уровень (cons литера результат))]         
+       [(= уровень 0)
+        (read (open-input-string (string-append "\"" (list->string (reverse результат)) "\"")))]
+       [else
+        (прочитать-строку (sub1 уровень) (cons литера результат))])]
+    [(литеры-равны? литера #\")
+     (прочитать-строку уровень (cons литера (cons #\\ результат)))]
+    [(литеры-равны? литера #\\)
+     (if была-черта
+         (прочитать-строку уровень (cons #\\ (cons #\\ результат)))
+         (прочитать-строку уровень результат #t))]
+    [была-черта
+     (прочитать-строку уровень (cons литера (cons #\\ результат)))]
+    [else (прочитать-строку уровень (cons литера результат))]))
+
 (define (прочитать-элемент)
   (define-values (c c2) (посмотреть-две-литеры))
   (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -606,6 +632,9 @@
           (read-char)
           (прочитать-цитату 'не-буквально-списком)]
          [else (прочитать-цитату 'не-буквально)])]
+      [(литеры-равны? c #\«)
+       (read-char)
+       (прочитать-строку 0 '())]
       [else
        (define res
          (cond
