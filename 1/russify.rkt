@@ -61,6 +61,12 @@
      ("(list " . "(список ")
      ("(list* " . "(список* ")
      ("(cons " . "(пара ")
+     ("application" . "применение")
+     ("required keyword argument not supplied" . "требуемый ключевой аргумент не предоставлен")
+     ("required keyword" . "требуемый ключевой аргумент")
+     ("does not expect an argument with given keyword" . "не ожидает данного ключевого аргумента")
+     ("given keyword" . "указанный ключевой аргумент")
+     ("arguments" . "аргументы")
      ("unbound identifier" . "неизвестный идентификатор"))))
 
 (define old-printer (global-port-print-handler))
