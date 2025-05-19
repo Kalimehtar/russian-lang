@@ -5,10 +5,16 @@
 (provide (rename-out [module-begin #%module-begin])
          #%top-interaction
          (except-out (all-defined-out) module-begin)
-         splicing-parameterize
+         splicing-parameterize english except-in
          #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) ->)
 (provide (for-syntax #%app #%top #%datum + - / * < > <= >= =>
                      (all-from-out 'syn) λ ... _))
+
+(define-syntax (english stx)
+  (syntax-case stx ()
+    [(_)
+     (with-syntax ([require-spec (datum->syntax stx '(except-in racket =))])
+       #'(require require-spec))]))
 
 (module syn racket/base
   (require syntax/parse (except-in racket/match ==) racket/sequence
@@ -105,8 +111,11 @@
                                         #:check-compiled? #t)))
                           #'имя #'имя)))]
     [(_ (с-префиксом префикс имя))
-     (quasisyntax/loc stx
+     (syntax/loc stx
        (require (prefix-in префикс имя)))]
+    [(_ (кроме имя имена ...))
+     (syntax/loc stx
+       (require (for-syntax (except-in имя имена ...))))]
     [(_ (файл имя)) (quasisyntax/loc stx
                       (require #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя)))]
     [(_ x) (syntax/loc stx (require x))]
@@ -126,8 +135,11 @@
                                          #:check-compiled? #t)))
                            #'имя #'имя))))]
     [(_ (с-префиксом префикс имя))
-     (quasisyntax/loc stx
+     (syntax/loc stx
        (require (for-syntax (prefix-in префикс имя))))]
+    [(_ (кроме имя имена ...))
+     (syntax/loc stx
+       (require (for-syntax (except-in имя имена ...))))]
     [(_ (файл имя))
      (quasisyntax/loc stx
        (require (for-syntax #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя))))]
