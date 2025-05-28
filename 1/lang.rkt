@@ -29,7 +29,6 @@
   (define-syntax-rule (&& выражение ...)
     (and выражение ...))
 
-  (синоним read прочитать)
   (define (ошибка . т) (apply error т))
   (define (== а . т) (andmap (λ (б) (equal? б а)) т))
   (define (=== а . т) (andmap (λ (б) (eqv? б а)) т))
@@ -97,100 +96,69 @@
                                 объект)])))
 (require (for-syntax 'syn) 'syn)
 
+(define-for-syntax (замена-адины? имя)
+  (and (or (identifier? имя) (string? (syntax-e имя)))
+       (not (module-path? (syntax-e имя)))))
+
 (define-for-syntax (имя-адины имя)
-  (datum->syntax имя
-                 (list 'file (if (string-suffix? (syntax-e имя) ".1")
-                                  (syntax-e имя)
-                                  (format "~a.1" (syntax-e имя))))
-                 имя имя))
+  (cond
+    [(not (замена-адины? имя)) имя]
+    [(string? (syntax-e имя))
+     (datum->syntax имя
+                    (list #'file (if (string-suffix? (syntax-e имя) ".1")
+                                     (syntax-e имя)
+                                     (format "~a.1" (syntax-e имя))))
+                    имя имя)]
+    [else      
+     (datum->syntax имя
+                    (list #'file (path->string
+                                  (collection-file-path
+                                   (format "~a.1" (syntax-e имя)) "1"
+                                   #:check-compiled? #t)))
+                    имя имя)]))
 
 (define-syntax (используется stx)
   (syntax-case stx (с-префиксом файл кроме)
-    [(_ имя)
-     (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
-     (with-syntax ([require-spec (datum->syntax #'имя
-                                                (list #'file (path->string
-                                                              (collection-file-path
-                                                               (format "~a.1" (syntax-e #'имя)) "1"
-                                                               #:check-compiled? #t)))
-                                                #'имя #'имя)])
-       (syntax/loc stx (require require-spec)))]
-    [(_ имя)
-     (and (string? (syntax-e #'имя)) (not (module-path? (syntax-e #'имя))))
-     (quasisyntax/loc stx
-       (require
-         #,(datum->syntax #'имя
-                          (list 'file (if (string-suffix? (syntax-e #'имя) ".1")
-                                           (syntax-e #'имя)
-                                           (format "~a.1" (syntax-e #'имя))))
-                          #'имя #'имя)))]
     [(_ (с-префиксом префикс имя))
-     (and (string? (syntax-e #'имя)) (not (module-path? (syntax-e #'имя))))
-     (with-syntax ([require-spec
-                    (datum->syntax #'имя
-                                   (list #'file (if (string-suffix? (syntax-e #'имя) ".1")
-                                                    (syntax-e #'имя)
-                                                    (format "~a.1" (syntax-e #'имя))))
-                                   #'имя #'имя)])
-                    
-       (syntax/loc stx
-         (require (prefix-in префикс require-spec))))]
-    [(_ (с-префиксом префикс имя))
-     (syntax/loc stx
-       (require (prefix-in префикс имя)))]
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require (prefix-in префикс require-spec)))]
     [(_ (кроме имя имена ...))
-     (syntax/loc stx
-       (require (for-syntax (except-in имя имена ...))))]
-    [(_ (файл имя)) (quasisyntax/loc stx
-                      (require #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя)))]
-    [(_ x) (syntax/loc stx (require x))]
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require (except-in require-spec имена ...)))]
+    [(_ (файл имя))
+     (with-syntax ([require-spec (datum->syntax #'имя (list #'file #'имя) #'имя #'имя)])
+       #'(require require-spec))]
+    [(_ имя)
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require require-spec))]
     [(_ x ...) #'(begin (используется x) ...)]))
 
 (define-syntax (используется-для-синтаксиса stx)
   (syntax-case stx (с-префиксом кроме файл)
-    [(_ имя)
-     (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
-     (quasisyntax/loc stx
-       (require
-         (for-syntax
-          #,(datum->syntax #'имя
-                           (list #'file (path->string
-                                        (collection-file-path
-                                         (format "~a.1" (syntax-e #'имя)) "1"
-                                         #:check-compiled? #t)))
-                           #'имя #'имя))))]
     [(_ (с-префиксом префикс имя))
-     (syntax/loc stx
-       (require (for-syntax (prefix-in префикс имя))))]
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require (for-syntax (prefix-in префикс require-spec))))]
     [(_ (кроме имя имена ...))
-     (syntax/loc stx
-       (require (for-syntax (except-in имя имена ...))))]
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require (for-syntax (except-in require-spec имена ...))))]
     [(_ (файл имя))
-     (quasisyntax/loc stx
-       (require (for-syntax #,(datum->syntax #'имя (list #'file #'имя) #'имя #'имя))))]
-    [(_ x) (syntax/loc stx (require (for-syntax x)))]
+     (with-syntax ([require-spec (datum->syntax #'имя (list #'file #'имя) #'имя #'имя)])
+       #'(require (for-syntax require-spec)))]
+    [(_ имя)
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(require (for-syntax require-spec)))]
     [(_ x ...) #'(begin (используется-для-синтаксиса x) ...)]))
 
 (define-syntax (предоставлять stx)
   (syntax-case stx (всё-из с-контрактом)
     [(_ (всё-из имя))
-     (and (identifier? #'имя) (not (module-path? (syntax-e #'имя))))
-     (quasisyntax/loc stx
-       (provide
-         (all-from-out
-          #,(datum->syntax #'имя
-                           (list 'file (path->string
-                                        (collection-file-path
-                                         (format "~a.1" (syntax-e #'имя)) "1"
-                                         #:check-compiled? #t)))))))]
-    [(_ (всё-из имя))
-     (syntax-local-introduce
-      (quasisyntax/loc stx (provide (all-from-out имя))))]
+     (with-syntax ([require-spec (имя-адины  #'имя)])
+       #'(provide (all-from-out require-spec)))]
     [(_ (с-контрактом выражение ...))
      (syntax-local-introduce
-      (quasisyntax/loc stx (provide (contract-out выражение ...))))]
-    [(_ x) (syntax/loc stx (provide x))]
-    [(_ x ...) (syntax/loc stx (begin (предоставлять x) ...))]))
+      #'(provide (contract-out выражение ...)))]
+    [(_ x) #'(provide x)]
+    [(_ x ...) #'(begin (предоставлять x) ...)]))
 
 (define-syntax (предоставлять-для-синтаксиса stx)
   (syntax-case stx (всё-из)
