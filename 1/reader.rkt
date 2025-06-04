@@ -123,9 +123,10 @@
 ;; пропустить-до-конца-строки! - читает и игнорирует до конца строки или файла
 ;; skip-to-end-of-line - reads and skips until the end of line or file
 (define (пропустить-до-конца-строки!)
-  (define c (read-char-or-special))
+  (define c (peek-char-or-special (current-input-port) 0))
   (unless (or (eof-object? c)
               (литеры-равны? c #\newline))
+    (read-char-or-special)
     (пропустить-до-конца-строки!)))
 
 ;; пропустить-блочный-комментарий! - читает и игнорирует блок #|...|# с учётом вложенных комментариев
@@ -728,7 +729,7 @@
   (test "1 2\n 3 4;  \n \n    5 6\n  7 8"
                 '(1 2 (3 4) (5 6 (7 8))))
   (test "(2 #|23 32|# . 3)"  '(2 . 3))
-  (test "2 3 -- sadasd  sad as\n 4 5"  '(2 3 4 5))
+  (test "2 3 -- sadasd  sad ad\n 4 5"  '(2 3 (4 5)))
   (test "(2 3 -- sadasd  sad as\n 4 5)"  '(2 3 4 5))
   (test "f(a) f(g(d))" '((f a) (f (g d))))
   (test "f(a; b c; d)" '(f a (b c) d))
