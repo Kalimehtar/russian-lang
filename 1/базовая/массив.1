@@ -20,8 +20,8 @@ mt:define-match-expander массив
          #'(rkt:vector образец ...)
       _ #'(rkt:procedure-rename rkt:vector 'массив)
 
-массив? массив =
-  rkt:vector? массив
+массив? объект =
+  rkt:vector? объект
 
 длина-массива массив =
   rkt:vector-length массив
