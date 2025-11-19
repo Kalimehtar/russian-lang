@@ -19,6 +19,7 @@
  ожидалась функция, которую можно применить к аргументам")
      ("mutable-string" . "изменяемая-строка")
      ("given:" . "получено:")
+     ("object:" . "объект:")
      ("expected:" . "ожидалось:")
      ("real?" . "вещественное?")
      ("#\\backspace" . "#\\забой")
@@ -66,8 +67,11 @@
      ("required keyword" . "требуемый ключевой аргумент")
      ("does not expect an argument with given keyword" . "не ожидает данного ключевого аргумента")
      ("given keyword" . "указанный ключевой аргумент")
-     ("arguments" . "аргументы")
-     ("unbound identifier" . "неизвестный идентификатор"))))
+     ("unbound identifier" . "неизвестный идентификатор")
+     ("arity mismatch" . "непаравильное количество аргументов")
+     ("the expected number of arguments does not match the given number"
+      . "ожидаемое количество аргументов не соответствует полученному")
+     ("arguments" . "аргументы"))))
 
 (define old-printer (global-port-print-handler))
 (define (byte-rus s start end)
