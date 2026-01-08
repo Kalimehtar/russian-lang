@@ -68,7 +68,7 @@
      ("does not expect an argument with given keyword" . "не ожидает данного ключевого аргумента")
      ("given keyword" . "указанный ключевой аргумент")
      ("unbound identifier" . "неизвестный идентификатор")
-     ("arity mismatch" . "непаравильное количество аргументов")
+     ("arity mismatch" . "неправильное количество аргументов")
      ("the expected number of arguments does not match the given number"
       . "ожидаемое количество аргументов не соответствует полученному")
      ("arguments" . "аргументы"))))
