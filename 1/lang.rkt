@@ -5,7 +5,7 @@
          #%top-interaction
          (except-out (all-defined-out) module-begin)
          splicing-parameterize english except-in
-         #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) ->
+         #%app #%datum + - / * < > <= >= => #%top (all-from-out 'syn) -> ==>
          (for-syntax #%app #%top #%datum + - / * < > <= >= =>
                      (all-from-out 'syn) λ ... _))
 
@@ -54,6 +54,11 @@
       [(_ а б в ...) #'(define а (б в ...))]))
 
   (define (значения . a) (apply values a))
+
+  (define-syntax (==> stx)
+    (syntax-case stx ()
+      [(_ (а ...) б) #'(lambda (а ...) б)]
+      [(_ а б) #'(lambda (а) б)]))
 
   (define-syntax (:= stx)
     (syntax-case stx (значения квадратные-скобки)
