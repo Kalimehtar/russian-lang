@@ -27,4 +27,7 @@
           rkt:printf "время процессора: ~s реальное: ~s сборки мусора: ~s\n" цп реальное сборка-мусора
           применить значения результаты
 
-сейчас() = rkt:current-seconds()
+сейчас точно?(ложь) =
+  точно? ?
+    rkt:current-inexact-milliseconds() / 1000
+    rkt:current-seconds()
