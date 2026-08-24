@@ -3336,6 +3336,366 @@ cвязывает <идентификатор> с результатом выч�
 @racket[класс]: @racket[этот], @racket[базовый-объект],
 @racket[создать-базовый-объект], @racket[базовый] и @racket[производный].}
 
+@defform[#:kind "синтаксис" (инициализировать объявление-инициализации ...)]{
+См. @racket[класс*] и @racket[класс] (переменные инициализации);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket инициализировать репа)
+      (linebreak) (hspace 4)
+      (racket (внутренняя-картошка картошка))
+      (linebreak) (hspace 4)
+      (racket (морковь 'хорошая))
+      (linebreak) (hspace 4)
+      (racket ((внутренняя-брюква брюква) 'нормальная))))
+    (void))]}
+
+@defform[#:kind "синтаксис" (инициализированные-поля объявление-инициализации ...)]{
+См. @racket[класс*] и @racket[класс] (переменные инициализации, поля);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket инициализированные-поля индейка)
+      (linebreak) (hspace 4)
+      (racket (внутренний-страус страус))
+      (linebreak) (hspace 4)
+      (racket (курица 7))
+      (linebreak) (hspace 4)
+      (racket ((внутренний-эму эму) 13))))
+    (void))]}
+
+@defform[#:kind "синтаксис" (поля объявление-поля ...)]{
+См. @racket[класс*] и @racket[класс] (поля);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket поля (минестроне 'готово))
+      (linebreak) (hspace 4)
+      (racket ((внутреннее-рагу рагу) 'тушится))))
+    (void))]}
+
+@defform[#:kind "синтаксис" (унаследованные-поля возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (поля);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket книга-рецептов% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket поля (рецепты '(суп яичница)) (страницы 389))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket класс книга-рецептов%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket унаследованные-поля рецепты (внутренние-страницы страницы))))
+    (void))]}
+
+@defform[#:kind "синтаксис" (методы возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket прыгун% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket пропуск) (racket ()) (hspace 1) (racketidfont "=") (hspace 1) (racket 'пропуск)
+      (linebreak) (hspace 2)
+      (racket подскок) (racket ()) (hspace 1) (racketidfont "=") (hspace 1) (racket 'подскок)
+      (linebreak) (hspace 2)
+      (racket методы пропуск (подскок прыжок))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (прыгун%)))
+      (hspace 1)
+      (racket пропуск)
+      (racketparenfont ")")))
+    'пропуск)
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (прыгун%)))
+      (hspace 1)
+      (racket прыжок)
+      (racketparenfont ")")))
+    'подскок)]}
+
+@defform[#:kind "синтаксис" (дополняемые-методы возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket бегун% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket бег) (racket ()) (hspace 1) (racketidfont "=") (hspace 1) (racket 'бег)
+      (linebreak) (hspace 2)
+      (racket рысь) (racket ()) (hspace 1) (racketidfont "=") (hspace 1) (racket 'рысь)
+      (linebreak) (hspace 2)
+      (racket дополняемые-методы бег (рысь трусца))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (бегун%)))
+      (hspace 1)
+      (racket бег)
+      (racketparenfont ")")))
+    'бег)
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (бегун%)))
+      (hspace 1)
+      (racket трусца)
+      (racketparenfont ")")))
+    'рысь)]}
+
+@defform[#:kind "синтаксис" (переопределить возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket овца% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket методы блеять)
+      (linebreak) (hspace 2)
+      (racket блеять) (racket ()) (hspace 1) (racketidfont "=")
+      (hspace 1) (racket вывести/перенос) (racket («бе-е-е»))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket растерянная-овца% = класс овца%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket блеять) (racket ()) (hspace 1) (racketidfont "=")
+      (linebreak) (hspace 4)
+      (racket базовый блеять)
+      (linebreak) (hspace 4)
+      (racket вывести/перенос) (racket («???»))
+      (linebreak) (hspace 2)
+      (racket переопределить блеять)))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (овца%)))
+      (hspace 1)
+      (racket блеять)
+      (racketparenfont ")")))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (растерянная-овца%)))
+      (hspace 1)
+      (racket блеять)
+      (racketparenfont ")")))
+    (void))]}
+
+@defform[#:kind "синтаксис" (дополнить возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket зуммер% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket дополняемые-методы жужжать)
+      (linebreak) (hspace 2)
+      (racket жужжать) (racket ()) (hspace 1) (racketidfont "=")
+      (linebreak) (hspace 4)
+      (racket вывести/перенос) (racket («жжжт»))
+      (linebreak) (hspace 4)
+      (elem (racket производный) (racket (пусто жужжать)))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket громкий-зуммер% = класс зуммер%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket жужжать) (racket ()) (hspace 1) (racketidfont "=")
+      (hspace 1) (racket вывести/перенос) (racket («ЖЖЖЖТ»))
+      (linebreak) (hspace 2)
+      (racket дополнить жужжать)))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (зуммер%)))
+      (hspace 1)
+      (racket жужжать)
+      (racketparenfont ")")))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (громкий-зуммер%)))
+      (hspace 1)
+      (racket жужжать)
+      (racketparenfont ")")))
+    (void))]}
+
+@defform[#:kind "синтаксис" (абстрактные идентификатор ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket поезд% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket абстрактные скорость)
+      (linebreak) (hspace 2)
+      (racket инициализированные-поля (положение 0))
+      (linebreak) (hspace 2)
+      (racket методы ехать)
+      (linebreak) (hspace 2)
+      (racket ехать) (racket ()) (hspace 1) (racketidfont "=")
+      (linebreak) (hspace 4)
+      (elem
+       (racket объект)
+       (hspace 1)
+       (racket этот%)
+       (hspace 1)
+       (racket положение)
+       (racketparenfont "(")
+       (elem (racket положение) (hspace 1) (racket +) (hspace 1) (racket скорость) (racket ()))
+       (racketparenfont ")"))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket скорый% = класс поезд%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket скорость) (racket ()) (hspace 1) (racketidfont "=") (hspace 1) (racket 241)
+      (linebreak) (hspace 2)
+      (racket переопределить скорость)))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (elem (racket объект) (racket (поезд%)))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket вызвать-метод)
+      (racketparenfont "(")
+      (elem (racket объект) (racket (скорый%)))
+      (hspace 1)
+      (racket ехать)
+      (racketparenfont ")")))
+    (void))]}
+
+@defform[#:kind "синтаксис" (унаследованные возможно-переименованное ...)]{
+См. @racket[класс*] и @racket[класс] (методы);
+использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.
+@examples[#:label ""
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket сирена% = класс объект%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket методы сирена)
+      (linebreak) (hspace 2)
+      (racket сирена) (racket ()) (hspace 1) (racketidfont "=")
+      (hspace 1) (racket вывести/перенос) (racket («бииип»))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (racket автомобильная-сирена% = класс сирена%)
+      (linebreak) (hspace 2)
+      (racket базовый-объект) (racket ())
+      (linebreak) (hspace 2)
+      (racket инициализированные-поля близость)
+      (linebreak) (hspace 2)
+      (racket унаследованные сирена)
+      (linebreak) (hspace 2)
+      (elem (racket если близость < 10 тогда) (hspace 1) (racket сирена) (racket ()))))
+    (void))
+   (eval:alts
+    (unsyntax
+     (elem
+      (elem (racket объект автомобильная-сирена% близость) (racket (5)))))
+    (void))]}
+
+@defform[#:kind "синтаксис" (базовый-объект (идентификатор выражение) ...)]{
+Вызывает инициализацию базового класса с указанными именными аргументами.
+См. @racket[класс*] и @racket[объект]. Использование вне тела
+@racket[класс] или @racket[класс*] — ошибка синтаксиса.}
+
+@defform[#:kind "синтаксис" #:id создать-базовый-объект создать-базовый-объект]{
+Возвращает функцию, которая принимает позиционные аргументы и вызывает
+инициализацию базового класса. См. @racket[класс*] и @racket[создать-объект].
+Использование вне тела @racket[класс] или @racket[класс*] — ошибка синтаксиса.}
+
 @defform[#:kind "синтаксис"
          (интерфейс (выражение-базового-интерфейса ...) имя ...)]{
 Возвращает интерфейс. Интерфейс — набор имён методов, которые должен
