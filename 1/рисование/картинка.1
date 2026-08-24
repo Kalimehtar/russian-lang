@@ -1,0 +1,82 @@
+#!1
+используется рисование/цвет графический-интерфейс/шрифт графический-интерфейс/объект
+  рисование/изображение
+  класс
+  с-префиксом img: images/icons/symbol
+  с-префиксом img-c: images/icons/control
+  с-префиксом img-style: images/icons/style
+
+предоставлять переработка галочка лямбда стоп текст
+
+переработка
+  #:цвет цвет "forestgreen"
+  #:высота высота img-style:default-icon-height()
+  #:материал материал img-style:default-icon-material()
+  =
+  объект изображение% $ внутренний $ img:recycle-icon
+    #:color
+      символ? цвет ?
+        стандартные-цвета{найти цвет}
+        цвет
+    #:height высота
+    #:material материал
+
+галочка
+  #:цвет цвет img-style:run-icon-color
+  #:высота высота img-style:default-icon-height()
+  #:материал материал img-style:default-icon-material()
+  =
+  объект изображение% $ внутренний $ img:check-icon
+    #:color
+      символ? цвет ?
+        стандартные-цвета{найти цвет}
+        цвет
+    #:height высота
+    #:material материал
+
+лямбда
+  #:цвет цвет img-style:light-metal-icon-color
+  #:высота высота img-style:default-icon-height()
+  #:материал материал img-style:default-icon-material()
+  =
+  объект изображение% $ внутренний $ img:lambda-icon
+    #:color
+      символ? цвет ?
+        стандартные-цвета{найти цвет}
+        цвет
+    #:height высота
+    #:material материал
+
+стоп
+  #:цвет цвет img-style:halt-icon-color
+  #:высота высота img-style:default-icon-height()
+  #:материал материал img-style:default-icon-material()
+  =
+  объект изображение% $ внутренний $ img-c:stop-icon
+    #:color
+      символ? цвет ?
+        стандартные-цвета{найти цвет}
+        цвет
+    #:height высота
+    #:material материал
+  
+текст строка
+  шрифт
+    объект шрифт%
+  #:обрезать? обрезать истина
+  #:цвет цвет 'белый
+  #:высота высота img-style:default-icon-height()
+  #:материал материал img-style:default-icon-material()
+  #:толщина-контура толщина-контура
+    высота / 32
+  =
+  объект изображение% $ внутренний $ img:text-icon строка
+    внутренний-объект шрифт
+    #:trim? обрезать
+    #:color
+      символ? цвет ?
+        стандартные-цвета{найти цвет}
+        цвет
+    #:height высота
+    #:material материал
+    #:outline толщина-контура   
