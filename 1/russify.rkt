@@ -20,6 +20,12 @@
      ("mutable-string" . "изменяемая-строка")
      ("given:" . "получено:")
      ("object:" . "объект:")
+     ("instantiate:" . "объект:")
+     ("cannot instantiate class with abstract methods" .
+      "нельзя создать объект класса
+ с нереализованными методами")
+     ("abstract methods:" . "методы:")
+     ("class:" . "класс:")
      ("expected:" . "ожидалось:")
      ("real?" . "вещественное?")
      ("#\\backspace" . "#\\забой")
