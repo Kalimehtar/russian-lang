@@ -10,10 +10,3 @@
 *.rktd
 *.sxref
 *.html
-1/russian-lang.scrbl-autorec.russian-lang
-*.pyc
-*.py
-1/_ref-classes.scrbl
-1/_ref-draw.scrbl
-1/_ref-interfaces.scrbl
-*.mdc
