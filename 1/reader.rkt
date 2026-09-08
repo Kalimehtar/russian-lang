@@ -503,8 +503,11 @@
     [(and (литеры-равны? c #\\)
           (литеры-равны? c2 #\newline))
      (read-char) (read-char) (прочитать-блок level)]
+    [(and (литеры-равны? c #\\)
+          (литеры-равны? c2 #\return))
+     (read-char) (read-char) (read-char) (прочитать-блок level)]
     [(литеры-равны? c #\newline)
-     (read-char)     
+     (read-char)
      (define next-level (прочитать-отступ! (not (terminal-port? (current-input-port)))))
      (if (отступ-увеличен? next-level level)
          (прочитать-блоки next-level)
