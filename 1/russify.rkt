@@ -64,6 +64,8 @@
      ("byte string:" . "строка байтов:")
      ("bytes->string/locale: byte string is not a valid encoding for the current locale"
       . "байты->строка/местные: строка байтов не является правильной в местной кодировке")
+     ("string->bytes/locale: string cannot be encoded for the current locale"
+      . "строка->байты/местные: строку нельзя закодировать в местной кодировке")
      ("in module:" . "в модуле:")
      ("'anonymous-module" . "'безымянный-модуль")
      ("#%datum: keyword misused as an expression"
