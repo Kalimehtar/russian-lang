@@ -595,7 +595,8 @@
   (cond
     [(eof-object? литера) (raise (exn:fail:read:eof
                                   "неожиданный конец файла"
-                                  (current-continuation-marks)))]
+                                  (current-continuation-marks)
+                                  '()))]
     [(литеры-равны? литера #\«)
      (прочитать-строку (if была-черта уровень (add1 уровень)) (cons литера результат))]
     [(литеры-равны? литера #\»)
