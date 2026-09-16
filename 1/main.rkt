@@ -8,6 +8,7 @@
   #:language '1/lang
   #:read my-read
   #:read-syntax my-read-syntax
+  #:wrapper1 (lambda (t) (с-приоритетами-модуля t))
   #:language-info #(1/language-info get-language-info #f)
   #:info get-info-proc
   (require 1/reader)

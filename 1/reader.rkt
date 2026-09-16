@@ -1,15 +1,21 @@
-#lang racket
-(require syntax/readerr syntax/srcloc syntax/parse racket/list syntax/stx syntax/strip-context)
-(provide my-read my-read-syntax)
+#lang racket/base
+(require racket/match racket/string racket/list
+         syntax/readerr syntax/srcloc syntax/parse syntax/stx syntax/strip-context)
+(provide my-read my-read-syntax с-приоритетами-модуля)
 
 (define (my-read [p (current-input-port)]) (syntax->datum (my-read-syntax #f p)))
 
 (define (my-read-syntax [source-name (object-name (current-input-port))]
                         [port (current-input-port)])
-  (with-handlers ([(λ (e) #t) перевести-ошибку])
-    (parameterize ([current-source-name source-name]
-                   [current-input-port port])      
-      (strip-context (разобрать-список-с-одной-точкой (чтение-кода-с-отступами))))))
+  (with-handlers ([exn:fail:read? перевести-ошибку])
+    (define (прочитать)
+      (parameterize ([current-source-name source-name]
+                     [current-input-port port])
+        (strip-context
+         (разобрать-список-с-одной-точкой (чтение-кода-с-отступами)))))
+    (if (текущие-приоритеты)
+        (прочитать)
+        (с-приоритетами-модуля прочитать))))
 
 ;; перевести-ошибку ошибка - Переводит строку описания ошибки exn:fail:read на русский язык.
 ;;                    Вызывает исключение с переданным аргументов.
@@ -164,7 +170,7 @@
      (пропустить-блочный-комментарий!)
      (пропустить-незначащее! без-переносов)]))
 
-;; чтение-кода-с-отступами - основаной читатель из текущего порта ввода. Читает блок с отступами,
+;; чтение-кода-с-отступами - основной читатель из текущего порта ввода. Читает блок с отступами,
 ;;   применяет правила операторов и спецопераций, возвращает синтаксис-список.
 ;; indent-read - main read function. Reads a block with indents, applies rules for operators and
 ;;   special chars, return syntax list.
@@ -175,7 +181,7 @@
   (cond    
     [(eof-object? c) (read-char) c]
     [(> (string-length indentation) 0)
-     (raise-read-error "Выражения верхнего уровня должны начнинаться с начала строки"
+     (raise-read-error "Выражения верхнего уровня должны начинаться с начала строки"
                        (current-source-name) ln 0 (- pos col) col)]
     [else
      (match-define (cons level stx) (прочитать-блок-с-правилами ""))
@@ -245,30 +251,35 @@
     [(x) #'x]
     [_ elem]))
 
-(define приоритеты (make-hasheq))
-(define (оператор! оп приоритет [ассоциативность 'лево])
-  (hash-set! приоритеты оп (cons приоритет ассоциативность)))
+(define операторы-по-умолчанию
+  '((* 8) (/ 8) (// 8) (% 8)
+    (+ 7) (- 7)
+    (++ 6)
+    (== 5) (/= 5) (< 5) (> 5) (<= 5) (>= 5)
+    (&& 4)
+    (|| 3)
+    (? 2) (: 2 право)
+    (==> 1.5)
+    (:= 1 право)
+    (= 0)))
 
-(оператор! '* 8)
-(оператор! '/ 8)
-(оператор! '// 8)
-(оператор! '% 8)
-(оператор! '+ 7)
-(оператор! '- 7)
-(оператор! '++ 6)
-(оператор! '== 5)
-(оператор! '/= 5)
-(оператор! '< 5)
-(оператор! '> 5)
-(оператор! '<= 5)
-(оператор! '>= 5)
-(оператор! '&& 4)
-(оператор! '|| 3)
-(оператор! '? 2)
-(оператор! ': 2 'право)
-(оператор! ':= 1 'право)
-(оператор! '= 0)
-(оператор! '==> 1.5)
+(define (новая-таблица-приоритетов)
+  (define h (make-hasheq))
+  (for ([оп операторы-по-умолчанию])
+    (hash-set! h (car оп)
+               (cons (cadr оп)
+                     (if (null? (cddr оп)) 'лево (caddr оп)))))
+  h)
+
+(define таблица-приоритетов-по-умолчанию (новая-таблица-приоритетов))
+(define текущие-приоритеты (make-parameter #f))
+
+(define (с-приоритетами-модуля thunk)
+  (parameterize ([текущие-приоритеты (hash-copy таблица-приоритетов-по-умолчанию)])
+    (thunk)))
+
+(define (оператор! оп приоритет [ассоциативность 'лево])
+  (hash-set! (текущие-приоритеты) оп (cons приоритет ассоциативность)))
 
 (define шаблон-оператора #rx"^[!#$%&⋆+./<=>?@^~:*-]*$")
 
@@ -295,7 +306,8 @@
 (define максимальный-приоритет 42)
 
 (define (приоритет-оператора оп)
-  (hash-ref приоритеты (syntax-e оп) (λ () (cons максимальный-приоритет 'лево))))
+  (hash-ref (текущие-приоритеты) (syntax-e оп)
+            (λ () (cons максимальный-приоритет 'лево))))
 
 (define (обработать-операторы stx)
   (define l (syntax-e stx))
@@ -386,52 +398,38 @@
 
 (define (обработать-если x)
   (syntax-parse x
-    [(если a (~datum тогда) b ... (~datum иначе) c ...)
+    [((~datum если) a (~datum тогда) b ... (~datum иначе) c ...)
      #'(если (a b ...) (иначе c ...))]
-    [(если a ... (~datum тогда) b ... (~datum иначе) c ...)
-     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x)) b ...)
+    [((~datum если) a ... (~datum тогда) b ... (~datum иначе) c ...)
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x))
+              b ...)
              (иначе c ...))]
-    [(если a (~datum тогда) b ...)
+    [((~datum если) a (~datum тогда) b ...)
      #'(если (a b ...))]
-    [(если a ... (~datum тогда) b ...)
-     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x)) b ...))]
+    [((~datum если) a ... (~datum тогда) b ...)
+     #`(если (#,(применить-правила (datum->syntax x (syntax-e #'(a ...)) x x))
+              b ...))]
     [_ x]))
+
+(define имена-кавычек
+  '(quote unquote quasiquote unquote-splicing
+    буквально почти-буквально не-буквально не-буквально-списком
+    синтаксис почти-синтаксис не-синтаксис не-синтаксис-списком))
+
+(define (кавычка? stx)
+  (and (identifier? stx) (memq (syntax-e stx) имена-кавычек)))
 
 (define (учесть-буквально x)
   (syntax-parse x
-    [((~and q
-            (~or (~datum quote)
-                 (~datum unquote)
-                 (~datum quasiquote)
-                 (~datum unquote-splicing)
-                 (~datum буквально)
-                 (~datum почти-буквально)
-                 (~datum не-буквально)
-                 (~datum не-буквально-списком)
-                 (~datum синтаксис)
-                 (~datum почти-синтаксис)
-                 (~datum не-синтаксис)
-                 (~datum не-синтаксис-списком)))
-      b c d ...)
+    [(q b c d ...)
+     #:when (кавычка? #'q)
      #`(q #,(применить-правила #'(b c d ...)))]
     [_ x]))
 
 (define (не-буквально? синтаксис)
   (syntax-parse синтаксис
-    [((~and q
-            (~or (~datum quote)
-                 (~datum unquote)
-                 (~datum quasiquote)
-                 (~datum unquote-splicing)
-                 (~datum буквально)
-                 (~datum почти-буквально)
-                 (~datum не-буквально)
-                 (~datum не-буквально-списком)
-                 (~datum синтаксис)
-                 (~datum почти-синтаксис)
-                 (~datum не-синтаксис)
-                 (~datum не-синтаксис-списком)))
-      d ...)
+    [(q d ...)
+     #:when (кавычка? #'q)
      #f]
     [_ #t]))
 
@@ -443,6 +441,9 @@
     [_ x]))
 
 (define (применить-правила x)
+  ;; Порядок задаёт приоритет конструкций относительно друг друга:
+  ;; если…тогда (только у литерала если), затем $, кавычки, инфикс.
+  ;; Поэтому `арг ==> если арг тогда 1` → (==> арг (если (арг 1))).
   (define y (обработать-операторы
              (учесть-буквально
               (обработать-$
@@ -560,8 +561,7 @@
       stx))
 
 (define (прочитать-литеру)
-  (define сч 2)
-  (define строка-поиска (make-string 9 #\space))  
+  (define строка-поиска (make-string 11 #\space))
   (let loop ([сч 2])
     (define литера (peek-char-or-special (current-input-port) (bytes-length
                                                                (string->bytes/utf-8
@@ -574,7 +574,7 @@
                        ("пусто " . #\nul)
                        ("забой " . #\backspace)
                        ("таб " . #\tab)
-                       ("страница . " #\page)
+                       ("страница " . #\page)
                        ("возврат " . #\return)
                        ("втаб " . #\vtab)
                        ("пробел " . #\space)
@@ -709,9 +709,16 @@
            [(литеры-равны? следующий-символ #\{)
             (read-char)
             (define l (прочитать-список-с-правилами #\}))
+            (define элементы (syntax-e l))
+            (when (null? элементы)
+              (raise-read-error "ожидалось имя метода"
+                                (current-source-name) ln col pos 1))
             (loop (datum->syntax
                    res
-                   (list* (if (cons? (car (syntax->datum l))) 'для-объекта 'вызвать-метод) res l)
+                   (list* (if (cons? (car (syntax->datum l)))
+                              'для-объекта
+                              'вызвать-метод)
+                          res l)
                    (позиция)
                    res))]
            [else (заменить-логические res)]))]))
@@ -732,7 +739,7 @@
      (cons next-level (list stx))]))
 
 (module+ test
-  (require rackunit)
+  (require rackunit racket/port)
   (define (test a b)
     (check-equal? (with-input-from-string a my-read) b))
   (test "(1 2 . 3)" '(1 2 . 3))
@@ -788,8 +795,29 @@
         '(если ((> 2 3) 3) (иначе 2)))
   (test "если 2 > 3 тогда\n  a := 3\n  иначе\n  a := 2"
         '(если ((> 2 3) (:= a 3)) (иначе (:= a 2))))
+  (test "арг ==> ф арг 1 2" '(==> арг (ф арг 1 2)))
+  (test "арг ==>\n  если арг тогда 1" '(==> арг (если (арг 1))))
+  (test "арг ==> если\n  арг 1" '(==> арг (если (арг 1))))
+  (test "арг ==> если арг тогда 1" '(==> арг (если (арг 1))))
+  (test "' арг ==> если арг тогда 1"
+        '(буквально (==> арг (если (арг 1)))))
   (test "..." '...)
   (test "f x y ? 1 2" '(? (f x y) 1 2))
   (test "f(x) =\n  1 + 2\n  2 - 3" '(= (f x) (+ 1 2) (- 2 3)))
   (test "тест = проверка 5" '(= тест (проверка 5)))
-  (test "2 3 #| sadasd  sad as\n 4 |# 5"  '(2 3 5)))
+  (test "2 3 #| sadasd  sad as\n 4 |# 5"  '(2 3 5))
+  (test "#\\перенос" #\newline)
+  (test "#\\страница" #\page)
+  (test "«абв»" "абв")
+  (test "** оператор! 1\n1 + 2 ** 3" '(** (+ 1 2) 3))
+  (test "оператор! ** 1\n1 + 2 ** 3" '(** (+ 1 2) 3))
+  (check-equal? (with-input-from-string "1 + 2 ** 3" my-read)
+                '(+ 1 (** 2 3)))
+  (check-equal?
+   (с-приоритетами-модуля
+    (λ ()
+      (define in (open-input-string "** оператор! 1\nx = 1\n1 + 2 ** 3"))
+      (list (my-read in) (my-read in))))
+   '((= x 1) (** (+ 1 2) 3)))
+  (check-exn exn:fail:read?
+             (λ () (with-input-from-string "x{}" my-read))))
