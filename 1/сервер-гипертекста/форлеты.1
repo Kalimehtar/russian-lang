@@ -161,13 +161,24 @@
   если
     (&& строки столбцы)
       rkt:textarea-input
-        #:attributes атрибуты #:value значение #:rows строки #:cols столбцы
-    (строки)
-      rkt:textarea-input #:attributes атрибуты #:value значение #:rows строки
-    (столбцы)
-      rkt:textarea-input #:attributes атрибуты #:value значение #:cols столбцы
+        #:attributes атрибуты
+        #:value значение
+        #:rows строки
+        #:cols столбцы
+    строки
+      rkt:textarea-input
+        #:attributes атрибуты
+        #:value значение
+        #:rows строки
+    столбцы
+      rkt:textarea-input
+        #:attributes атрибуты
+        #:value значение
+        #:cols столбцы
     иначе
-      rkt:textarea-input #:attributes атрибуты #:value значение
+      rkt:textarea-input
+        #:attributes атрибуты
+        #:value значение
 
 флажок-формы значение отмечен?
   #:атрибуты атрибуты пустой-список
