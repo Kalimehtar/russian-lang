@@ -1,0 +1,31 @@
+#!1
+используется
+  с-префиксом rkt: net/url
+  с-префиксом codec: net/uri-codec
+
+предоставлять строка->url схема-url узел-url порт-url путь-url \
+  параметры-url путь-сегмента список-пар->кодирование-url
+
+строка->url строка =
+  rkt:string->url строка
+
+схема-url url =
+  rkt:url-scheme url
+
+узел-url url =
+  rkt:url-host url
+
+порт-url url =
+  rkt:url-port url
+
+путь-url url =
+  rkt:url-path url
+
+параметры-url url =
+  rkt:url-query url
+
+путь-сегмента сегмент =
+  rkt:path/param-path сегмент
+
+список-пар->кодирование-url список =
+  codec:alist->form-urlencoded список
