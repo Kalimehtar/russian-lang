@@ -1,6 +1,9 @@
 #lang racket/base
 (require racket/class 1/syn racket/contract racket/splicing
-         (for-syntax (except-in racket/base =) 1/run-fast racket/contract racket/string))
+         (except-in ffi/unsafe ->) 1/run-fast
+         (for-syntax (except-in racket/base =) 1/run-fast 1/fast-cpp
+                     racket/contract racket/string racket/syntax
+                     syntax/parse))
 (provide (rename-out [module-begin #%module-begin])
          #%top-interaction
          (except-out (all-defined-out) module-begin)
@@ -192,8 +195,43 @@
 (синоним send+ вызвать-цепочку-методов)
 (синоним send* для-объекта)
 
+(define-for-syntax (ctype-id key)
+  (case key
+    [(целое) #'_int]
+    [(вещественное) #'_double]
+    [(логическое) #'_stdbool]
+    [else
+     (raise-syntax-error 'надо-быстро
+                         (format "нет FFI-типа для ~a" key))]))
+
+(define-for-syntax (export->binding export)
+  ;; export: (adina-sym gen-name ret-key arg-keys fname-stx)
+  (define adina-sym (list-ref export 0))
+  (define gen-name (list-ref export 1))
+  (define ret-key (list-ref export 2))
+  (define arg-keys (list-ref export 3))
+  (define fname-stx (list-ref export 4))
+  (define ret-id (ctype-id ret-key))
+  (define arg-ids (map ctype-id arg-keys))
+  (with-syntax ([name (datum->syntax fname-stx adina-sym fname-stx)]
+                [gen (string->symbol gen-name)]
+                [ret ret-id]
+                [(arg ...) arg-ids])
+    #'(define name
+        (get-ffi-obj-from-fast 'gen
+                               (_cprocedure (list arg ...) ret)))))
+
 (define-syntax (надо-быстро stx)
-  1)
+  (syntax-parse stx
+    [(_ form ...)
+     (define-values (cpp exports)
+       (adina-fast->cpp #'(form ...) fresh-generated-name))
+     (add-cpp-fragment! cpp)
+     (for ([ex (in-list exports)])
+       (add-fast-export! ex))
+     (with-syntax ([(bind ...)
+                    (map export->binding exports)])
+       #'(begin bind ...))]))
 
 (define-for-syntax (add-headers stx body)
   (define base-srcloc (srcloc (syntax-source stx) 1 0 1 3))
@@ -209,7 +247,8 @@
   (syntax-case body ()
     [(expr ...)
      (begin
-       #`((используется #,(datum->syntax stx 'базовая base-srcloc (get-atom #'(expr ...))))
+       #`((используется #,(datum->syntax stx 'базовая base-srcloc
+                                         (get-atom #'(expr ...))))
           expr ...))]
     [_ body]))
 
@@ -219,14 +258,51 @@
      (quasisyntax/loc stx
        (#%module-begin
         (require (for-syntax 1/run-fast))
-        (begin-for-syntax (start '#,(syntax-source stx)))        
+        (begin-for-syntax
+          (start '#,(syntax-source stx)))
         body ...
         (begin-for-syntax (end))))]
     [(_ body ...)
-     (with-syntax ([(new-body ...) (add-headers stx #'(body ...))])
-       (quasisyntax/loc stx
-         (#%module-begin
-          (require (for-syntax 1/run-fast))
-          (begin-for-syntax (start '#,(syntax-source stx)))        
-          new-body ...
-          (begin-for-syntax (end)))))]))
+     (let* ([headers (add-headers stx #'(body ...))]
+            [bodies (syntax->list headers)]
+            [maybe-fast?
+             (for/or ([b (in-list bodies)])
+               (syntax-case b (надо-быстро)
+                 [(надо-быстро . _) #t]
+                 [_ #f]))])
+       (with-syntax ([(new-body ...) headers])
+         (cond
+           [(not maybe-fast?)
+            (quasisyntax/loc stx
+              (#%module-begin
+               (require (for-syntax 1/run-fast))
+               (begin-for-syntax
+                 (start '#,(syntax-source stx)))
+               new-body ...
+               (begin-for-syntax (end))))]
+           [else
+            (reset-fast-state!)
+            (let* ([expanded
+                    (local-expand
+                     (quasisyntax/loc stx
+                       (#%module-begin
+                        (require
+                         (for-syntax 1/run-fast))
+                        (begin-for-syntax
+                          (start
+                           '#,(syntax-source stx)))
+                        new-body ...
+                        (begin-for-syntax (end))))
+                     'module-begin
+                     null)]
+                   [cpp (take-cpp-source)]
+                   [so (compile-cpp-to-shared cpp)])
+              (syntax-case expanded ()
+                [(pmb e ...)
+                 (with-syntax ([so-path so])
+                   (quasisyntax/loc stx
+                     (#%module-begin
+                      (set-box!
+                       fast-lib-box
+                       (ffi-lib so-path))
+                      e ...)))]))])))]))

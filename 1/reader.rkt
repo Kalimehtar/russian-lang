@@ -617,6 +617,31 @@
     [была-черта (прочитать-строку уровень (cons литера (cons #\\ результат)))]
     [else (прочитать-строку уровень (cons литера результат))]))
 
+(define (прочитать-сырую-строку-в-скобках open close)
+  ;; Открывающая скобка уже прочитана. Читает до парной close с учётом вложенности.
+  (define out (open-output-string))
+  (let loop ([depth 1])
+    (define ch (read-char))
+    (cond
+      [(eof-object? ch)
+       (define-values (ln col pos)
+         (port-next-location (current-input-port)))
+       (raise-read-eof-error
+        "файл закончился внутри си{…}"
+        (current-source-name) ln col pos 1)]
+      [(литеры-равны? ch open)
+       (write-char ch out)
+       (loop (add1 depth))]
+      [(литеры-равны? ch close)
+       (if (= depth 1)
+           (get-output-string out)
+           (begin
+             (write-char ch out)
+             (loop (sub1 depth))))]
+      [else
+       (write-char ch out)
+       (loop depth)])))
+
 (define (прочитать-элемент)
   (define-values (c c2) (посмотреть-две-литеры))
   (define-values (ln col pos) (port-next-location (current-input-port)))
@@ -708,19 +733,38 @@
                    res))]
            [(литеры-равны? следующий-символ #\{)
             (read-char)
-            (define l (прочитать-список-с-правилами #\}))
-            (define элементы (syntax-e l))
-            (when (null? элементы)
-              (raise-read-error "ожидалось имя метода"
-                                (current-source-name) ln col pos 1))
-            (loop (datum->syntax
-                   res
-                   (list* (if (cons? (car (syntax->datum l)))
-                              'для-объекта
-                              'вызвать-метод)
-                          res l)
-                   (позиция)
-                   res))]
+            ;; си{…} — буквальная строка Си++; иначе вызов метода
+            (cond
+              [(and (identifier? res) (eq? (syntax-e res) 'си))
+               (define-values (str-ln str-col str-pos)
+                 (port-next-location (current-input-port)))
+               (define raw (прочитать-сырую-строку-в-скобках #\{ #\}))
+               (define-values (_1 _2 end-pos)
+                 (port-next-location (current-input-port)))
+               (define str-stx
+                 (datum->syntax #f raw
+                                (vector (current-source-name)
+                                        str-ln str-col str-pos
+                                        (- end-pos str-pos))))
+               (loop (datum->syntax
+                      #f
+                      (list (datum->syntax res 'си res res) str-stx)
+                      (позиция)
+                      res))]
+              [else
+               (define l (прочитать-список-с-правилами #\}))
+               (define элементы (syntax-e l))
+               (when (null? элементы)
+                 (raise-read-error "ожидалось имя метода"
+                                   (current-source-name) ln col pos 1))
+               (loop (datum->syntax
+                      res
+                      (list* (if (cons? (car (syntax->datum l)))
+                                 'для-объекта
+                                 'вызвать-метод)
+                             res l)
+                      (позиция)
+                      res))])]
            [else (заменить-логические res)]))]))
   (cond
     [(eof-object? элемент) элемент]
@@ -791,6 +835,11 @@
         '(для-объекта (new point%) (move-x 5) (move-y 7) (move-x 12)))
   (test "new(point%){move-x 5}"
         '(вызвать-метод (new point%) move-x 5))
+  (test "си{}" '(си ""))
+  (test "си{sin(21)}" '(си "sin(21)"))
+  (test "си{абв где}" '(си "абв где"))
+  (test "си{sin(} x си{)}" '((си "sin(") x (си ")")))
+  (test "вернуть си{sin(21)}" '(вернуть (си "sin(21)")))
   (test "если 2 > 3 тогда 3 иначе 2"
         '(если ((> 2 3) 3) (иначе 2)))
   (test "если 2 > 3 тогда\n  a := 3\n  иначе\n  a := 2"
