@@ -623,24 +623,54 @@
      (for ([ex (in-list exports)])
        (add-fast-export! ex))
      (define cpp-all (take-cpp-source))
+     (define-values (abs-so _rel-so)
+       (if (pair? exports)
+           (fast-runtime-so-paths key)
+           (values #f #f)))
      (define so-path
        (and (pair? exports)
-            (compile-cpp-to-shared cpp-all)))
+            (compile-cpp-to-shared
+             cpp-all
+             #:output-so abs-so)))
+     (define emit-runtime-path?
+       (and so-path
+            abs-so
+            (not (unbox fast-runtime-path-emitted?))))
+     (when emit-runtime-path?
+       (set-box! fast-runtime-path-emitted? #t))
      (with-syntax ([key key]
                    [body-cpp body-cpp]
                    [(bind ...)
-                    (map export->binding exports)])
-       (if so-path
-           (with-syntax ([so so-path])
-             #'(begin
-                 (begin-for-syntax
-                   (register-module-cpp! key body-cpp))
-                 (set-box! fast-lib-box (ffi-lib so))
-                 bind ...))
-           #'(begin
-               (begin-for-syntax
-                 (register-module-cpp! key body-cpp))
-               bind ...)))]))
+                    (map export->binding exports)]
+                   [so-id
+                    (datum->syntax stx 'adina-fast-so-path)])
+       (cond
+         [(and so-path emit-runtime-path?)
+          (with-syntax
+              ([abs (path->string abs-so)])
+            #'(begin
+                (begin-for-syntax
+                  (register-module-cpp! key body-cpp))
+                (require racket/runtime-path)
+                ;; Absolute path: relative would resolve against 1/lang,
+                ;; not the user .1 file. raco exe still packages it.
+                (define-runtime-path so-id abs)
+                (set-box! fast-lib-box (ffi-lib so-id))
+                bind ...))]
+         [so-path
+          ;; Later blocks / anon: load by absolute path (same file).
+          ;; define-runtime-path from the first block covers raco exe.
+          (with-syntax ([so so-path])
+            #'(begin
+                (begin-for-syntax
+                  (register-module-cpp! key body-cpp))
+                (set-box! fast-lib-box (ffi-lib so))
+                bind ...))]
+         [else
+          #'(begin
+              (begin-for-syntax
+                (register-module-cpp! key body-cpp))
+              bind ...)]))]))
 
 (define-for-syntax (surface-fast-module-path)
   (path->string
