@@ -1,5 +1,5 @@
 #lang racket/base
-;; Translate Adina надо-быстро syntax into C++ source + export table.
+;; Core IR → C++ for надо-быстро (no module table; no вывод/ввод).
 (require racket/match
          racket/string
          racket/list
@@ -8,22 +8,7 @@
 (provide adina-fast->cpp
          type-key->c-type
          type-key->cpp
-         include-for-module)
-
-;; ---------------------------------------------------------------------------
-;; Includes and types
-;; ---------------------------------------------------------------------------
-
-(define (include-for-module mod-id)
-  (define name (syntax-e mod-id))
-  (case name
-    [(ввод-вывод) "#include <iostream>\n"]
-    [(математика) "#include <cmath>\n"]
-    [else
-     (raise-syntax-error
-      'надо-быстро
-      (format "неизвестный модуль для C++: ~a" name)
-      mod-id)]))
+         export-preamble)
 
 (define (type-key->cpp key stx)
   (case key
@@ -51,10 +36,6 @@
    "#define ADINA_EXPORT extern \"C\"\n"
    "#endif\n\n"))
 
-;; ---------------------------------------------------------------------------
-;; Name environment
-;; ---------------------------------------------------------------------------
-
 (struct env (table fresh) #:transparent)
 
 (define (make-env fresh-fn)
@@ -68,19 +49,11 @@
 
 (define (env-lookup e id-stx)
   (define sym (syntax-e id-stx))
-  (cond
-    [(eq? sym 'вывод) "std::cout"]
-    [(eq? sym 'ввод) "std::cin"]
-    [(hash-ref (env-table e) sym #f)]
-    [else
-     (raise-syntax-error
-      'надо-быстро
-      (format "неизвестное имя в быстром коде: ~a" sym)
-      id-stx)]))
-
-;; ---------------------------------------------------------------------------
-;; Expressions
-;; ---------------------------------------------------------------------------
+  (or (hash-ref (env-table e) sym #f)
+      (raise-syntax-error
+       'надо-быстро
+       (format "неизвестное имя в быстром коде: ~a" sym)
+       id-stx)))
 
 (define (escape-c-string s)
   (string-append*
@@ -113,10 +86,6 @@
      (if (syntax-e #'b) "true" "false")]
     [id:id
      (env-lookup e #'id)]
-    [((~datum <<) a b)
-     (format "~a << ~a" (expr->cpp #'a e) (expr->cpp #'b e))]
-    [((~datum >>) a b)
-     (format "~a >> ~a" (expr->cpp #'a e) (expr->cpp #'b e))]
     [((~datum +) a b)
      (format "(~a + ~a)" (expr->cpp #'a e) (expr->cpp #'b e))]
     [((~datum -) a b)
@@ -147,18 +116,15 @@
       (map (λ (x) (format "(~a)" (expr->cpp x e)))
            (syntax->list #'(a ...)))
       " || ")]
-    [((~datum не) a)
-     (format "(!~a)" (expr->cpp #'a e))]
     [((~datum си) s:string)
-     ;; Буквальная вставка фрагмента Си++
      (syntax-e #'s)]
     [(fn:id arg ...)
      (format "~a(~a)"
              (env-lookup e #'fn)
              (string-join
-              (map (λ (a) (expr->cpp a e)) (syntax->list #'(arg ...)))
+              (map (λ (a) (expr->cpp a e))
+                   (syntax->list #'(arg ...)))
               ", "))]
-    ;; Склейка: си{sin(} x си{)} и т.п.
     [(part parts ...+)
      (string-append*
       (map (λ (p) (expr->cpp p e))
@@ -169,34 +135,21 @@
       "неподдерживаемое выражение в быстром коде"
       stx)]))
 
-;; ---------------------------------------------------------------------------
-;; Statements
-;; ---------------------------------------------------------------------------
-
 (define (stmt->cpp stx e)
   (syntax-parse stx
     [((~datum =) id:id expr)
      (define gen (env-bind! e #'id))
-     (format "  auto ~a = ~a;\n" gen (expr->cpp #'expr e))]
-    [((~datum вернуть) part ...+)
-     (format "  return ~a;\n"
-             (string-append*
-              (map (λ (p) (expr->cpp p e))
-                   (syntax->list #'(part ...)))))]
-    [((~datum <<) . _)
-     (format "  ~a;\n" (expr->cpp stx e))]
-    [((~datum >>) . _)
-     (format "  ~a;\n" (expr->cpp stx e))]
+     (format "  auto ~a = ~a;\n"
+             gen (expr->cpp #'expr e))]
+    [((~or* (~datum блок) (~datum begin)) s ...)
+     (stmts->cpp #'(s ...) e)]
     [_
      (format "  ~a;\n" (expr->cpp stx e))]))
 
 (define (stmts->cpp stx-list e)
   (string-append*
-   (map (λ (s) (stmt->cpp s e)) (syntax->list stx-list))))
-
-;; ---------------------------------------------------------------------------
-;; Function header: ((name) ret) or ((name a t1 b t2 ...) ret)
-;; ---------------------------------------------------------------------------
+   (map (λ (s) (stmt->cpp s e))
+        (syntax->list stx-list))))
 
 (define (parse-header header-stx)
   (syntax-parse header-stx
@@ -228,7 +181,8 @@
 (define (function->cpp def-stx fresh)
   (syntax-parse def-stx
     [((~datum =) header body ...)
-     (define-values (fname ret-id arg-pairs) (parse-header #'header))
+     (define-values (fname ret-id arg-pairs)
+       (parse-header #'header))
      (define gen-fn (fresh))
      (define e (make-env fresh))
      (define arg-cpp
@@ -248,7 +202,6 @@
         gen-fn
         (string-join arg-cpp ", ")
         body-cpp))
-     ;; export: adina-sym, gen-name, ret-key, arg-keys, fname-stx
      (define export
        (list (syntax-e fname)
              gen-fn
@@ -262,39 +215,29 @@
       "ожидалось определение функции: имя(...) тип = тело"
       def-stx)]))
 
-;; ---------------------------------------------------------------------------
-;; Top-level forms inside надо-быстро
-;; ---------------------------------------------------------------------------
-
+;; forms: only си / function defs (after macro expand)
+;; Returns (values top-cpp functions-cpp exports)
+;; top-cpp — literal fragments (includes); functions-cpp — exported funcs
 (define (adina-fast->cpp forms-stx fresh)
-  (define includes '())
+  (define top '())
   (define functions '())
   (define exports '())
   (for ([form (in-list (syntax->list forms-stx))])
     (syntax-parse form
-      [((~datum используется) mod:id)
-       (set! includes
-             (append includes (list (include-for-module #'mod))))]
-      [((~datum используется) mod:id ...)
-       #:when (not (null? (syntax->list #'(mod ...))))
-       (for ([m (in-list (syntax->list #'(mod ...)))])
-         (set! includes
-               (append includes (list (include-for-module m)))))]
+      [((~datum си) s:string)
+       (set! top
+             (append top
+                     (list (string-append (syntax-e #'s) "\n"))))]
       [((~datum =) . _)
-       (define-values (code export) (function->cpp form fresh))
+       (define-values (code export)
+         (function->cpp form fresh))
        (set! functions (append functions (list code)))
        (set! exports (append exports (list export)))]
       [_
        (raise-syntax-error
         'надо-быстро
-        (string-append
-         "ожидалось «используется …» "
-         "или определение функции")
+        "ожидалось си{…} или определение функции"
         form)]))
-  (define cpp
-    (string-append
-     (string-append* (remove-duplicates includes))
-     "\n"
-     export-preamble
-     (string-append* functions)))
-  (values cpp exports))
+  (values (string-append* top)
+          (string-append* functions)
+          exports))

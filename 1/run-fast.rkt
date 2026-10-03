@@ -1,6 +1,5 @@
 #lang racket/base
-;; C++ compile for надо-быстро (superc-like, g++).
-;; Require at phase 0 for runtime FFI box; for-syntax for compile helpers.
+;; C++ compile + per-module C++ registry for надо-быстро.
 (require ffi/unsafe
          racket/file
          racket/system
@@ -17,37 +16,43 @@
          take-fast-exports
          fresh-generated-name
          shared-lib-suffix
-         find-g++)
-
-;; ---------------------------------------------------------------------------
-;; Runtime library box
-;; ---------------------------------------------------------------------------
+         find-g++
+         register-module-cpp!
+         lookup-module-cpp
+         current-fast-module-key
+         set-current-fast-module-key!)
 
 (define fast-lib-box (box #f))
 
 (define-syntax-rule (get-ffi-obj-from-fast sym type)
   (get-ffi-obj sym (unbox fast-lib-box) type))
 
-;; ---------------------------------------------------------------------------
-;; Expand-time state (phase 0 of this module = phase 1 when required for-syntax)
-;; ---------------------------------------------------------------------------
-
 (define cpp-fragments (box '()))
 (define fast-exports (box '()))
 (define name-counter (box 0))
+;; Persistent across modules: abs-path-string → cpp body (no shared preamble)
+(define module-cpp-registry (make-hash))
+(define current-module-key (box #f))
 
 (define (reset-fast-state!)
   (set-box! cpp-fragments '())
   (set-box! fast-exports '())
-  (set-box! name-counter 0))
+  (set-box! name-counter 0)
+  (set-box! current-module-key #f))
+
+(define (current-fast-module-key)
+  (unbox current-module-key))
+
+(define (set-current-fast-module-key! key)
+  (set-box! current-module-key key))
 
 (define (add-cpp-fragment! s)
-  (set-box! cpp-fragments (append (unbox cpp-fragments) (list s))))
+  (set-box! cpp-fragments
+            (append (unbox cpp-fragments) (list s))))
 
 (define (add-fast-export! export)
-  ;; (list adina-id generated-name-string ret-key arg-keys)
-  ;; ret-key / arg-keys: 'целое | 'вещественное | 'логическое
-  (set-box! fast-exports (append (unbox fast-exports) (list export))))
+  (set-box! fast-exports
+            (append (unbox fast-exports) (list export))))
 
 (define (take-cpp-source)
   (string-append* (unbox cpp-fragments)))
@@ -58,6 +63,13 @@
 (define (fresh-generated-name)
   (set-box! name-counter (add1 (unbox name-counter)))
   (format "generated_name~a" (unbox name-counter)))
+
+(define (register-module-cpp! key cpp)
+  (when (and key (string? key) (positive? (string-length cpp)))
+    (hash-set! module-cpp-registry key cpp)))
+
+(define (lookup-module-cpp key)
+  (and key (hash-ref module-cpp-registry key #f)))
 
 (define (shared-lib-suffix)
   (case (system-type 'os)

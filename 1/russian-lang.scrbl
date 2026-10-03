@@ -57,3 +57,5 @@
 
 @include-section{doc/sections/reference.scrbl}
 
+@include-section{doc/sections/надо-быстро.scrbl}
+
