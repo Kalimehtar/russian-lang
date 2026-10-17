@@ -764,7 +764,6 @@
            (надо-быстро-код key (dkey ...) code ...)))]))
 
 (define-for-syntax (add-headers stx body)
-  (define base-srcloc (srcloc (syntax-source stx) 1 0 1 3))
   (define (get-atom exprs)
     (define datum (syntax-e exprs))
     (cond
@@ -777,7 +776,7 @@
   (syntax-case body ()
     [(expr ...)
      (begin
-       #`((используется #,(datum->syntax stx 'базовая base-srcloc
+       #`((используется #,(datum->syntax stx 'базовая #f
                                          (get-atom #'(expr ...))))
           expr ...))]
     [_ body]))
