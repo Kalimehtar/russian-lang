@@ -1557,6 +1557,8 @@
 
 @include-section{hypertext-server-reference.scrbl}
 
+@include-section{checks-reference.scrbl}
+
 @section[#:tag "priorities"]{Приоритет операторов}
 
 Чем больше число, тем выше приоритет. Если не указано иное, операторы
