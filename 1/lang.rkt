@@ -763,6 +763,23 @@
            pass ...
            (надо-быстро-код key (dkey ...) code ...)))]))
 
+;; DrRacket при открытии выполняет только «#!1» как пустой модуль под путём
+;; файла. Авто-базовая тогда даёт цикл для базовая.1 и базовая/*.
+(define-for-syntax (базовая-подсистема? stx)
+  (define src (syntax-source stx))
+  (define p
+    (cond
+      [(path? src) src]
+      [(string? src) (string->path src)]
+      [else #f]))
+  (and p
+       (or
+        (let ([имя (file-name-from-path p)])
+          (and имя (equal? (path->string имя) "базовая.1")))
+        (for/or ([часть (in-list (explode-path p))])
+          (and (path-for-some-system? часть)
+               (equal? (path->string часть) "базовая"))))))
+
 (define-for-syntax (add-headers stx body)
   (define (get-atom exprs)
     (define datum (syntax-e exprs))
@@ -794,7 +811,9 @@
         (begin-for-syntax (end))))]
     [(_ body ...)
      (with-syntax ([(new-body ...)
-                    (add-headers stx #'(body ...))])
+                    (if (базовая-подсистема? stx)
+                        #'(body ...)
+                        (add-headers stx #'(body ...)))])
        (quasisyntax/loc stx
          (#%module-begin
           (require (for-syntax 1/run-fast))
